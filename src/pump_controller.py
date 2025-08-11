@@ -15,7 +15,7 @@ def skip_if_sim(default_return = None):
     return decorator
 
 class pump_controller:
-    def __init__(self, COM: str, sim: bool = False):
+    def __init__(self, COM: str, baud: int = 115200, sim: bool = False):
         self.sim = sim
 
         if self.sim:
@@ -24,7 +24,7 @@ class pump_controller:
         else:
             logging.info("Configuring pump controller serial port..")
             self.ser = serial.Serial(COM) 
-            self.ser.baudrate = 115200
+            self.ser.baudrate = baud
             self.ser.bytesize = 8 
             self.ser.parity = 'N' # No parity
             self.ser.stopbits = 1

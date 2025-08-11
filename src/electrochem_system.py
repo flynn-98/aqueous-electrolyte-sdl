@@ -1,6 +1,5 @@
 import logging
 import os
-import random
 from datetime import datetime
 from csv import DictWriter
 import time
@@ -16,24 +15,33 @@ from scipy.signal import find_peaks
 
 from squidstat import squidstat
 
+def skip_if_sim(default_return = None):
+    def decorator(func):
+        def wrapper(self: measurements, *args, **kwargs):
+            if self.sim:
+                return default_return
+            return func(self, *args, **kwargs)
+        return wrapper
+    return decorator
+
 class measurements:
-    def __init__(self, squid_port: str, instrument: str, squid_sim: bool = False) -> None:
+    def __init__(self, squid_port: str, instrument: str, results_path: str, channel: int = 0, squid_sim: bool = False) -> None:
 
-        self.squid = squidstat(COM=squid_port, instrument=instrument)
         self.sim = squid_sim
-
-        self.conductivity_acceptance = 0.5 #mS/cm
-        self.cv_acceptance = 0.5 #V
-        self.max_attempts = 10
+        self.squid = squidstat(COM=squid_port, instrument=instrument, results_path=results_path, channel=channel, squid_sim=squid_sim)
 
         # Metadata
         self.user = "Unknown"
         self.electrolyte = "Unknown"
         self.project = "Unknown"
 
+        # Default values (might be overwritten)
+        self.conductivity_acceptance = 0.5 #mS/cm
+        self.esw_acceptance = 0.5 #V
+        self.max_attempts = 10
+
         self.epsilon_0 = 8.8541878128e-12 # vacuum permittivity
         self.cell_constant = 8 # to be set from hardcoded values
-        
         self.test_cell_volume = 2.4 # ml
 
         self.master_csv = None
@@ -127,6 +135,7 @@ class measurements:
         if self.user == "Unknown" or self.project == "Unknown" or self.electrolyte == "Unknown":
             raise RuntimeError("Metadata incomplete!")
     
+    @skip_if_sim()
     def perform_EIS_experiment(self,
         start_frequency: float,
         end_frequency: float,
@@ -137,7 +146,7 @@ class measurements:
         get_temperature_fn: Optional[Callable[[], float]] = None,
         measurements: int = 1
         ) -> None:
-
+        
         self.metadata_check()
 
         # Update dir, csv and id for robust data collection
@@ -282,10 +291,7 @@ class measurements:
         plt.savefig(os.path.join(self.squid.results_path, identifier + ".png"), dpi=300)
         plt.close()
 
-    def get_impedance_properties(self, identifier: str = "na", metadata: dict = {}, plot: bool = True) -> float:
-        if self.sim is True:
-            return (random.random(), random.random())
-        
+    def get_impedance_properties(self, identifier: str = "na", metadata: dict = {}, plot: bool = True) -> float:    
         # AC data required for impedance properties
         data = pd.read_csv(self.squid.get_ac_path(identifier)).to_numpy()
 
@@ -354,6 +360,7 @@ class measurements:
 
         return np.average(data[:, 1])
     
+    @skip_if_sim()
     def perform_CV_experiment(self,
         first_voltage_limit: float,
         second_voltage_limit: float,
@@ -387,11 +394,11 @@ class measurements:
             end_voltage = start_voltage
     
             count = 0
-            error = self.cv_acceptance + 1
+            error = self.esw_acceptance + 1
             last_result = 0
 
             # Loop until stable values (stability checked using minimum bulk conductivity)
-            while (count < self.max_attempts and error > self.cv_acceptance):
+            while (count < self.max_attempts and error > self.esw_acceptance):
                 logging.info(f"Repeating until ESW is stable (measurement #{count+1})..")
                 time.sleep(10)
 

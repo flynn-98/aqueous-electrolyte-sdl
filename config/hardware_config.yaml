@@ -1,55 +1,78 @@
-# Example hardware + experiment config for the electrolyte mixer/optimizer (8 chemicals)
-
 serial:
   pump_controller_A:
     port: "COM5"
-    # Calibrations for channels 0..3 (ml per second) at default_pwm
-    ml_per_s: [0.094, 0.094, 0.094, 0.094]
-    default_pwm: 0.60
+    baud: 115200
+    mock: False
+
   pump_controller_B:
     port: "COM6"
-    ml_per_s: [0.094, 0.094, 0.094, 0.094]
-    default_pwm: 0.60
+    baud: 115200
+    mock: False
 
   temperature_controller:
     port: "COM9"
+    baud: 115200
+    mock: False
 
   squidstat:
     # If your squidstat.py uses another constructor arg (e.g., device index), adapt here.
     port: "COM11"
-
-measurements:
-  # Root directory for results (your measurements() helper manages subfolders/mode files)
-  results_root: "./results"
+    channel: 0
+    instrument: "Plus2695"
+    mock: False
 
 # Map each chemical to its controller/pump index and prime volume to fill the tubing.
 # pump_index is 1..4 for each controller.
 chemicals:
-  Chem1: { controller: "A", pump_index: 1, prime_ml: 6.0 }
-  Chem2: { controller: "A", pump_index: 2, prime_ml: 6.0 }
-  Chem3: { controller: "A", pump_index: 3, prime_ml: 6.0 }
-  Chem4: { controller: "A", pump_index: 4, prime_ml: 6.0 }
-  Chem5: { controller: "B", pump_index: 1, prime_ml: 6.0 }
-  Chem6: { controller: "B", pump_index: 2, prime_ml: 6.0 }
-  Chem7: { controller: "B", pump_index: 3, prime_ml: 6.0 }
-  Chem8: { controller: "B", pump_index: 4, prime_ml: 6.0 }
+  Chem1: { controller: "A", pump_index: 1, prime_ml: 2.0 }
+  Chem2: { controller: "A", pump_index: 2, prime_ml: 2.0 }
+  Chem3: { controller: "A", pump_index: 3, prime_ml: 2.0 }
+  Chem4: { controller: "A", pump_index: 4, prime_ml: 2.0 }
+  Chem5: { controller: "B", pump_index: 1, prime_ml: 2.0 }
+  Chem6: { controller: "B", pump_index: 2, prime_ml: 2.0 }
+  Chem7: { controller: "B", pump_index: 3, prime_ml: 2.0 }
+  Chem8: { controller: "B", pump_index: 4, prime_ml: 2.0 }
 
-# Default pump parameters used by the scheduler for priming / single‑channel dosing.
+# Default pump parameters used by the scheduler for priming / dosing.
 pumps:
-  defaults:
-    pwm: 0.60
+  # Calibration for stepper pumps
+  ml_per_rev: 0.094
+  # Calibration for DC pumps
+  default_pwm: 0.60
+  ml_per_s: 1.0
+
+measurements:
+  # Root directory for results (your measurements() helper manages subfolders/mode files)
+  results_root: "./results/"
+  user: "Wessel"
+  project: "MOFESS"
+  cell_constant: 3 # /cm
+  cell_volume: 2.4 # ml
 
 temperature:
-  setpoints_C: [5.0, 20.0, 40.0]
+  setpoints_C: [0.0, 10.0, 20.0, 40.0]
   tolerance_C: 0.3
   timeout_s: 1800
-  soak_s: 120
+  wait_s: 120
+  max_attempts: 10 # for reading to settle at each temperature
 
 eis:
-  current_A: 0.0
-  freq_start_Hz: 10000.0
-  freq_stop_Hz: 0.5
-  ppd: 8
+  conductivity_acceptance: 0.5 # mS/cm
+  freq_start_Hz: 85000
+  freq_end_Hz: 1
+  ppd: 20
+  amplitude_v: 0.01
+  bias_v: 0
+  measurements_per_temp: 1
+
+cv:
+  esw_acceptance: 0.1 # V
+  first_limit_V: -1.5
+  second_limit_V: 1.5
+  scan_rate: 0.1
+  sampling_interval_s: 0.1
+  cycles: 2
+  measurements_per_temp: 1
 
 # Optional quick-start recipe (ml per chemical). Used by scheduler.__main__ only.
 example_recipe_ml:

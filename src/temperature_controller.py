@@ -4,7 +4,6 @@ import sys
 import time
 
 import matplotlib.pyplot as plt
-import numpy as np
 import serial
 
 logging.basicConfig(level = logging.INFO)
@@ -12,11 +11,18 @@ logging.basicConfig(level = logging.INFO)
 # To communicate with: https://lairdthermal.com/products/product-temperature-controllers/tc-xx-pr-59-temperature-controller
 
 class peltier:
-    def __init__(self, COM: str, sim: bool = False) -> None:
+    def __init__(self, COM: str, baud: int = 115200, sim: bool = False) -> None:
         self.sim = sim
 
+        # Default temperature wait parameters (might be overwritten)
+        self.allowable_error = 0.3 #C
+        self.steady_state = 120 #s (2mins)
+        self.timeout = 1800 #s (30mins)
+        self.equilibrium_time = 300 #s (equilibrium time)
+
+        # Fixed values
         self.max_temp = 40 #C
-        self.min_temp = 0 #C
+        self.min_temp = -20 #C
 
         self.input_voltage = 12.0 #V
         self.max_current = 10.0 #A
@@ -34,12 +40,6 @@ class peltier:
         self.A_coeff_2 = 1.0373e-3
         self.B_coeff_2 = 2.3317e-4
         self.C_coeff_2 = 8.3896e-8
-
-        # Steady state temperature
-        self.allowable_error = 0.3 #C
-        self.steady_state = 120 #s (2mins)
-        self.timeout = 1800 #s (30mins)
-        self.equilibrium_time = 300 #s (equilibrium time)
 
         # Heating/Cooling control
         self.heating_tc = 60 #%
@@ -63,10 +63,13 @@ class peltier:
         self.subzero_threshold = 0 #C
         self.dead_band = 4 #+-% to prevent rapid switching
 
-        if self.sim is False:
+        if self.sim:
+            logging.info("Simulated connection to pump controller established.")
+
+        else:
             logging.info("Configuring temperature controller serial port..")
             self.ser = serial.Serial(COM) 
-            self.ser.baudrate = 115200
+            self.ser.baudrate = baud
             self.ser.bytesize = 8
             self.ser.parity = 'N' # No parity
             self.ser.stopbits = 1
@@ -133,11 +136,8 @@ class peltier:
             self.set_fan_modes()
             self.assess_status()      
 
-        else:
-            logging.info("No serial connection to temperature controller established.")
-
     def close_ser(self) -> None:
-        if self.sim is False:
+        if not self.sim:
             if self.ser.isOpen():
                 self.ser.close()
 
@@ -152,7 +152,7 @@ class peltier:
 
         # returns '18245 TC-XX-PR-59 REV2.6'
 
-        if self.sim is False:
+        if not self.sim:
             self.ser.write((msg+'\r').encode('ascii'))
 
             repeat = self.get_data()
@@ -169,7 +169,7 @@ class peltier:
     def set_run_flag(self) -> None:
         msg = "$W"
 
-        if self.sim is False and self.run_flag is False:
+        if not self.sim and not self.run_flag:
             self.ser.write((msg+'\r').encode('ascii'))
             repeat = self.get_data().split(" ")[1]
 
@@ -182,7 +182,7 @@ class peltier:
     def clear_run_flag(self) -> None:
         msg = "$Q"
 
-        if self.sim is False and self.run_flag is True:
+        if not self.sim and self.run_flag:
             self.ser.write((msg+'\r').encode('ascii'))
             repeat = self.get_data().split(" ")[1]
 
@@ -195,7 +195,7 @@ class peltier:
     def get_status(self) -> str:
         msg = "$S"
 
-        if self.sim is False:
+        if not self.sim:
             self.ser.write((msg+'\r').encode('ascii'))
             repeat = self.get_data().split(" ")[1]
 
@@ -212,7 +212,7 @@ class peltier:
     def clear_status(self) -> None:
         msg = "$SC"
 
-        if self.sim is False:
+        if not self.sim:
             self.ser.write((msg+'\r').encode('ascii'))
             repeat = self.get_data().split(" ")[1]
 
@@ -256,7 +256,7 @@ class peltier:
 
         # For RXX=, if data=int response is <Downloaded data>, if foat <no response>
 
-        if self.sim is False:
+        if not self.sim:
             msg = f"$R{REGISTER_NUMBER}={VALUE}"
 
             self.ser.write((msg+'\r').encode('ascii'))
@@ -274,7 +274,7 @@ class peltier:
             return True
         
     def register_read(self, REGISTER_NUMBER: int) -> float | int:
-        if self.sim is False:
+        if not self.sim:
             msg = f"$R{REGISTER_NUMBER}?"
             self.ser.write((msg+'\r').encode('ascii'))
 

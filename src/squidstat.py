@@ -28,7 +28,7 @@ from SquidstatPyLibrary import (
 logging.basicConfig(level = logging.INFO)
 
 class squidstat:
-    def __init__(self, COM: str, instrument: str, channel: int = 0, sim: bool = False) -> None:
+    def __init__(self, COM: str, instrument: str, results_path: str, channel: int = 0, sim: bool = False) -> None:
         self.sim = sim
 
         if not QApplication.instance():
@@ -40,7 +40,7 @@ class squidstat:
         self.experiment = None
         self.channel = channel
 
-        self.results_path = "data/results/"
+        self.results_path = results_path
 
         # Create results folder if first time running code on PC
         if not os.path.exists(self.results_path):
@@ -93,7 +93,7 @@ class squidstat:
         # Create dataframes
         self.reset_dataframes()
         
-        if self.sim is False:
+        if not self.sim:
             # Attach functions to call during events
             self.tracker.newDeviceConnected.connect(self.handle_device_connected)
             

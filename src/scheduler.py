@@ -9,46 +9,38 @@ import yaml
 # Local hardware modules (from the user's codebase)
 from pump_controller import pump_controller
 from temperature_controller import peltier
-from squidstat import squidstat
-from test_cell import measurements
+from electrochem_system import measurements
 
 log = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 class scheduler:
-    def __init__(self, config_path: str, sim: bool = False) -> None:
-        """
-        Load configuration and create hardware instances.
-
-        Args:
-            config_path: path to YAML file (see example).
-            sim: pass True to avoid talking to serial hardware during dry-runs.
-        """
-        self.sim = sim
+    def __init__(self, config_path: str) -> None:
         self.cfg = self._load_config(config_path)
 
         # --- Instantiate hardware ---
         # Pumps (two 4‑channel controllers → 8 chemicals total)
         pumpA_cfg = self.cfg["serial"]["pump_controller_A"]
         pumpB_cfg = self.cfg["serial"]["pump_controller_B"]
-        self.pumpA = pump_controller(COM=pumpA_cfg["port"], sim=self.sim)
-        self.pumpB = pump_controller(COM=pumpB_cfg["port"], sim=self.sim)
+        self.pumpA = pump_controller(COM=pumpA_cfg["port"], baud=pumpA_cfg["baud"], sim=pumpA_cfg["mock"])
+        self.pumpB = pump_controller(COM=pumpB_cfg["port"], baud=pumpB_cfg["baud"], sim=pumpB_cfg["mock"])
 
         # Temperature controller
         pel_cfg = self.cfg["serial"]["temperature_controller"]
-        self.tec = peltier(COM=pel_cfg["port"], sim=self.sim)
+        self.tec = peltier(COM=pel_cfg["port"], baud=pel_cfg["baud"], sim=pel_cfg["mock"])
 
         # Potentiostat
         squid_cfg = self.cfg["serial"]["squidstat"]
-        self.squid = squidstat(port=squid_cfg.get("port", None), sim=self.sim)
 
         # Measurements helper (for data/paths, post-processing, etc.)
         meas_cfg = self.cfg.get("measurements", {})
         self.meas = measurements(
-            squid=self.squid,
-            results_root=meas_cfg.get("results_root", "./results"),
-            sim=self.sim
-        )
+            squid_port=squid_cfg["port"], 
+            instrument=squid_cfg["instrument"],
+            results_path=meas_cfg.get("results_root", "./results") ,
+            channel=squid_cfg["channel"],
+            squid_sim=squid_cfg["mock"]
+            )
 
         # Map chemicals to (controller, pump_index)
         # Example entry in YAML:
