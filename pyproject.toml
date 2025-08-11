@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aqueous-electrolyte-sdl"
+authors = [
+    {name = "Flynn Marshall", email = "flyma@dtu.dk"}
+]
+
+description = "Python package to run electroyte mixing experiments using the mixing station, which utilises a disc pump for aspirating and dispensing operations."
+version = "1.0.0"
+readme = "README.md"
+requires-python = ">=3.8,<3.11"
+dependencies = [
+    "requests > 2.26.0",
+    "pandas",
+    "numpy < 2",
+    "pyserial",
+    "ipython",
+    "datetime",
+    "matplotlib",
+    "impedance",
+]
+
+[project.optional-dependencies]
+lint = [
+    "mypy",
+]
+
+[project.urls]
+repository = "https://github.com/flynn-98/aqueous-electrolyte-sdl.git"
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+disallow_untyped_defs = true
