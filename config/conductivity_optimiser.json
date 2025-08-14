@@ -1,0 +1,71 @@
+{
+    "optimization_name": "Liquid Electrolyte Optimisation",
+    "description": "Optimisation of liquid electrolyte composition to maximise properties such as ionic conductivity",
+    "sdlabs_account_type": "enterprise",
+    "sdlabs_group_id": "CAPeX_Pioneer_Center",
+    "parameters": [
+        {
+            "name": "ZnCl2",
+            "low_value": 0,
+            "high_value": 1500,
+            "stride": 10,
+            "type": "discrete"
+        },
+        {
+            "name": "Zn(ClO4)2",
+            "low_value": 0,
+            "high_value": 1500,
+            "stride": 10,
+            "type": "discrete"
+        },
+        {
+            "name": "Zn(BF4)2",
+            "low_value": 0,
+            "high_value": 1500,
+            "stride": 10,
+            "type": "discrete"
+        }
+    ],
+    "multi_objective_function": "weighted_sum",
+    "objectives": [
+        {
+            "name": "Conductivity",
+            "goal": "max",
+            "multi_objective_configuration": {
+                "weight": 0.7
+            }
+        },
+        {
+            "name": "Cost",
+            "goal": "min",
+            "multi_objective_configuration": {
+                "weight": 0.3
+            }
+        }
+    ],
+    "constraints": [
+        {
+            "type": "linear_eq",
+            "definitions": [
+                {
+                    "parameter": "ZnCl2",
+                    "weight": 1
+                },
+                {
+                    "parameter": "Zn(ClO4)2",
+                    "weight": 1
+                },
+                {
+                    "parameter": "Zn(BF4)2",
+                    "weight": 1
+                }
+            ],
+            "targets": [
+                1500
+            ]
+        }
+    ],
+    "batch_size": 1,
+    "algorithm": "falcongpbo",
+    "budget": 30
+}

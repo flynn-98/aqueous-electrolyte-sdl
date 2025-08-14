@@ -26,6 +26,7 @@ class scheduler:
         Args:
             config_path (str): Path to YAML configuration file.
         """
+        self.cfg_path = config_path
         self.cfg = self._load_config(config_path)
 
         # Pumps (two 4‑channel controllers → 8 chemicals total)
@@ -63,7 +64,6 @@ class scheduler:
         self.tec.allowable_error = temp_cfg["tolerance_C"]
         self.tec.steady_state = temp_cfg["steady_s"]
         self.tec.timeout = temp_cfg["timeout_s"]
-        self.tec.equilibrium_time = temp_cfg["wait_s"]
         self.cell.max_attempts = temp_cfg["max_attempts"]
 
         # Map chemicals to (controller, pump_index)
@@ -192,6 +192,13 @@ class scheduler:
         self._transfer_pump("B", waste_no, self.cell.test_cell_volume + extra_vol, check)
 
     def system_flush(self, cleaning_agent: str = "Ethanol", flushing_agent: str = "Milli-Q"):
+        """
+        Heated cleaning of test cell, with rinses and prolonged cleaning with cleaning agent. 
+        
+        Args:
+            cleaning_agent (str): Name of cleaning agent (e.g. Ethanol), to match chemical name in config file.
+            flushing_agent (str): Name of flushing agent (E.g. Milli-Q Water), to match chemical name in config file.
+        """
         flush_volume = self.cfg["volumes"].get("flush_ml", 0)
         cleaning_time = self.cfg["temperature"].get("cleaning_delay_s", 60)
 
@@ -289,7 +296,7 @@ class scheduler:
         eis = self.cfg.get("eis", {})
 
         if not recipe_ml:
-            recipe_ml = self.cfg.get("default_recipe_ml", {})
+            recipe_ml = self.cfg.get("recipe_ml", {})
 
         # Sanity checks
         self.tec.handshake()
@@ -319,6 +326,73 @@ class scheduler:
 
         if deprime:
             self.deprime_lines()
+
+    def update_yaml_volumes(self, values: dict) -> None:
+        """
+        Update 'recipe_ml' in self.cfg with new dose volumes (uL -> mL).
+        Writes updated self.cfg back to self.cfg_path.
+        """
+
+        if "recipe_ml" not in self.cfg:
+            log.warning("'recipe_ml' not in config; creating it.")
+            self.cfg["recipe_ml"] = {}
+
+        recipe = self.cfg["recipe_ml"]
+
+        # 1) Set *all existing* entries to zero (safety: prevent unintended aspirations)
+        for chem in list(recipe.keys()):
+            recipe[chem] = 0.0
+
+        # 2) Apply suggestions (convert uL -> mL)
+        total_ml = 0
+        for name, ul in values.items():
+            try:
+                ul_f = float(ul)
+            except Exception:
+                log.error(f"{name}: non-numeric dose '{ul}' -> setting to 0")
+                ul_f = 0.0
+
+            ml = round(ul_f / 1000, 3)
+
+            if name not in recipe:
+                raise ValueError(f"{name} returned from Atinary not in YAML recipe_ml!")
+
+            recipe[name] = ml
+
+            total_ml += ml
+            log.info(f"{name} dose volume updated to {ul_f}uL ({ml}mL).")
+
+        log.info(f"New recipe total volume = {total_ml}ml.")
+
+        # 3) Save back to YAML
+        with open(self.cfg_path, "w", encoding="utf-8") as f:
+            yaml.dump(self.cfg, f, sort_keys=False)
+
+    def calculate_cost(self) -> float:
+        """
+        Compute total cost from self.cfg after update_yaml_volumes() has run.
+        - Uses self.cfg['recipe_ml'] volumes in mL
+        - Uses self.cfg['chemicals'][name]['cost'] as cost per mL
+        """
+        recipe = self.cfg.get("recipe_ml", {})
+        chems  = self.cfg.get("chemicals", {})
+
+        total = 0
+        for name, vol_ml in recipe.items():
+            meta = chems.get(name)
+            if not meta or "cost" not in meta:
+                log.warning(f"calculate_cost: missing chem/cost for '{name}', skipping.")
+                continue
+            try:
+                v = float(vol_ml)
+                c = float(meta["cost"])
+            except (TypeError, ValueError):
+                log.error(f"calculate_cost: non-numeric vol/cost for '{name}' (vol='{vol_ml}', cost='{meta.get('cost')}'), skipping.")
+                continue
+            total += v * c
+
+        logging.info(f"Total recipe cost = {total:.6g}")
+        return total
 
     # -------------------- End Public API --------------------
 

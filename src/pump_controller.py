@@ -1,6 +1,6 @@
 import logging
 import sys
-
+import time
 import serial
 
 logging.basicConfig(level = logging.INFO)
@@ -33,6 +33,8 @@ class pump_controller:
 
             if self.ser.isOpen() is False:
                 self.ser.open()
+
+            time.sleep(2)
 
             # Check connection (blocking)
             if self.check_status():

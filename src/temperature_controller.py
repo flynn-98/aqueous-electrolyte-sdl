@@ -27,7 +27,6 @@ class peltier:
         self.allowable_error = 0.25 #C
         self.steady_state = 90 #s
         self.timeout = 1800 #s (30mins)
-        self.equilibrium_time = 120 #s (settle time)
 
         # Fixed values
         self.max_temp = 40 #C
@@ -492,9 +491,6 @@ class peltier:
             if keep_on is False:
                 logging.info("Switching off TEC.")
                 self.clear_run_flag()
-            else:
-                logging.info(f"Waiting {self.equilibrium_time}s for system to settle before measurements..")
-                time.sleep(self.equilibrium_time)
 
             return True
         

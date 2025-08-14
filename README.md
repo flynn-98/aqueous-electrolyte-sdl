@@ -67,6 +67,8 @@ The SDL Wrapper is a codebase created by Atinary, for quick and easy set up of o
 .venv/bin/pip install git+https://github.com/Atinary-technologies/sdlabs_wrapper.git
 ```
 
+Fetch your API key from the Account page on SDLabs platform and export it as an env variable: export SDLABS_API_KEY=<paste it here>
+
 ## Recommended Extensions
 
 For easy viewing and editing of CSVs, it is recommended that you download [this CSV extension](https://marketplace.visualstudio.com/items?itemName=ReprEng.csv) for VS Code.
