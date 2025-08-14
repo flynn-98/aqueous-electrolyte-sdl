@@ -1,5 +1,4 @@
 import logging
-import random
 import sys
 import time
 
@@ -7,6 +6,15 @@ import matplotlib.pyplot as plt
 import serial
 
 logging.basicConfig(level = logging.INFO)
+
+def skip_if_sim(default_return = None):
+    def decorator(func):
+        def wrapper(self: peltier, *args, **kwargs):
+            if self.sim:
+                return default_return
+            return func(self, *args, **kwargs)
+        return wrapper
+    return decorator
 
 # To communicate with: https://lairdthermal.com/products/product-temperature-controllers/tc-xx-pr-59-temperature-controller
 
@@ -79,97 +87,92 @@ class peltier:
             if self.ser.isOpen() is False:
                 self.ser.open()
             
-            if self.handshake() is True:
-                logging.info("Serial connection to temperature controller established.")
-            else:
-                logging.error("Failed to establish serial connection to temperature controller.")   
-                sys.exit()
+        self.handshake()
 
-            if self.set_regulator_mode() is True:
-                logging.info("Temperature regulator PID mode successfully configured.")
-            else:
-                logging.error("Temperature regulator configuration failed.")
-                sys.exit()
+        if self.set_regulator_mode() is True:
+            logging.info("Temperature regulator PID mode successfully configured.")
+        else:
+            logging.error("Temperature regulator configuration failed.")
+            sys.exit()
 
-            if (self.set_tc_dead_band() is True):
-                logging.info("Temperature regulator dead band settings successfully configured.")
-            else:
-                logging.error("Temperature regulator dead band configuration failed.")
-                sys.exit()
+        if (self.set_tc_dead_band() is True):
+            logging.info("Temperature regulator dead band settings successfully configured.")
+        else:
+            logging.error("Temperature regulator dead band configuration failed.")
+            sys.exit()
 
-            if self.set_voltage_alarm_settings() is True:
-                logging.info("Temperature regulator voltage alarm settings successfully configured.")
-            else:
-                logging.error("Temperature regulator voltage alarm configuration failed.")
-                sys.exit()
+        if self.set_voltage_alarm_settings() is True:
+            logging.info("Temperature regulator voltage alarm settings successfully configured.")
+        else:
+            logging.error("Temperature regulator voltage alarm configuration failed.")
+            sys.exit()
 
-            if self.set_current_alarm_settings() is True:
-                logging.info("Temperature regulator current alarm settings successfully configured.")
-            else:
-                logging.error("Temperature regulator current alarm configuration failed.")
-                sys.exit()
+        if self.set_current_alarm_settings() is True:
+            logging.info("Temperature regulator current alarm settings successfully configured.")
+        else:
+            logging.error("Temperature regulator current alarm configuration failed.")
+            sys.exit()
 
-            if self.configure_main_sensor() is True:
-                logging.info("Temperature Sensor #1 successfully configured.")
-            else:
-                logging.error("Temperature Sensor #1 configuration failed.")
-                sys.exit()
+        if self.configure_main_sensor() is True:
+            logging.info("Temperature Sensor #1 successfully configured.")
+        else:
+            logging.error("Temperature Sensor #1 configuration failed.")
+            sys.exit()
 
-            if self.configure_heat_sink_sensor() is True:
-                logging.info("Temperature sensor #2 successfully configured.")
-            else:
-                logging.error("Temperature sensor #2 configuration failed.")
-                sys.exit()
+        if self.configure_heat_sink_sensor() is True:
+            logging.info("Temperature sensor #2 successfully configured.")
+        else:
+            logging.error("Temperature sensor #2 configuration failed.")
+            sys.exit()
 
-            if self.set_main_steinhart_coeffs() is True:
-                logging.info("Successfully updated steinhart coefficients for temperature sensor #1.")
-            else:
-                logging.error("Failed to update steinhart coefficients for temperature sensor #1.")
-                sys.exit() 
+        if self.set_main_steinhart_coeffs() is True:
+            logging.info("Successfully updated steinhart coefficients for temperature sensor #1.")
+        else:
+            logging.error("Failed to update steinhart coefficients for temperature sensor #1.")
+            sys.exit() 
 
-            if self.set_heat_sink_steinhart_coeffs() is True:
-                logging.info("Successfully updated steinhart coefficients for temperature sensor #2.")
-            else:
-                logging.error("Failed to update steinhart coefficients for temperature sensor #2.")
-                sys.exit()         
+        if self.set_heat_sink_steinhart_coeffs() is True:
+            logging.info("Successfully updated steinhart coefficients for temperature sensor #2.")
+        else:
+            logging.error("Failed to update steinhart coefficients for temperature sensor #2.")
+            sys.exit()         
 
-            self.set_fan_modes()
-            self.assess_status()      
+        self.set_fan_modes()
+        self.assess_status()      
 
+    @skip_if_sim()
     def close_ser(self) -> None:
-        if not self.sim:
-            if self.ser.isOpen():
-                self.ser.close()
+        if self.ser.isOpen():
+            self.ser.close()
 
+    @skip_if_sim(default_return="NA")
     def get_data(self) -> str:
         while self.ser.in_waiting == 0:
             pass
 
         return self.ser.readline().decode().rstrip()
     
-    def handshake(self) -> bool:
+    @skip_if_sim()
+    def handshake(self) -> None:
         msg = "$LI"
 
         # returns '18245 TC-XX-PR-59 REV2.6'
 
-        if not self.sim:
-            self.ser.write((msg+'\r').encode('ascii'))
+        self.ser.write((msg+'\r').encode('ascii'))
 
-            repeat = self.get_data()
-            info = self.get_data()
-            if info.split(" ")[1] == "TC-XX-PR-59" and repeat == msg:
-                logging.info("Serial device located: " + info)
-                return True
-            else:
-                return False
-        
+        repeat = self.get_data()
+        info = self.get_data()
+
+        if info.split(" ")[1] == "TC-XX-PR-59" and repeat == msg:
+            logging.info("TEC located: " + info)
         else:
-            return True
+            raise RuntimeError("Temperature controller handshake failed: check connection!")
 
+    @skip_if_sim()
     def set_run_flag(self) -> None:
         msg = "$W"
 
-        if not self.sim and not self.run_flag:
+        if not self.run_flag:
             self.ser.write((msg+'\r').encode('ascii'))
             repeat = self.get_data().split(" ")[1]
 
@@ -179,10 +182,11 @@ class peltier:
             else:
                 logging.error("Failed to set temperature controller Run flag.")
 
+    @skip_if_sim()
     def clear_run_flag(self) -> None:
         msg = "$Q"
 
-        if not self.sim and self.run_flag:
+        if self.run_flag:
             self.ser.write((msg+'\r').encode('ascii'))
             repeat = self.get_data().split(" ")[1]
 
@@ -192,40 +196,35 @@ class peltier:
             else:   
                 logging.error("Failed to clear temperature controller Run flag.")
 
+    @skip_if_sim(default_return="0000 0000 0000")
     def get_status(self) -> str:
         msg = "$S"
 
-        if not self.sim:
-            self.ser.write((msg+'\r').encode('ascii'))
-            repeat = self.get_data().split(" ")[1]
+        self.ser.write((msg+'\r').encode('ascii'))
+        repeat = self.get_data().split(" ")[1]
 
-            if repeat == msg:
-                logging.info("Temperature controller status received.")
-            else:   
-                logging.error("Failed to get temperature controller status.")
+        if repeat == msg:
+            logging.info("Temperature controller status received.")
+        else:   
+            logging.error("Failed to get temperature controller status.")
 
-            return self.get_data()
-        
-        else:
-            return "0000 0000 0000"
-
-    def clear_status(self) -> None:
+        return self.get_data()
+    
+    @skip_if_sim(default_return="0000 0000 0000")
+    def clear_status(self) -> str:
         msg = "$SC"
 
-        if not self.sim:
-            self.ser.write((msg+'\r').encode('ascii'))
-            repeat = self.get_data().split(" ")[1]
+        self.ser.write((msg+'\r').encode('ascii'))
+        repeat = self.get_data().split(" ")[1]
 
-            if repeat == msg:
-                logging.info("Temperature controller status cleared.")
-            else:   
-                logging.error("Failed to clear temperature controller status.")
+        if repeat == msg:
+            logging.info("Temperature controller status cleared.")
+        else:   
+            logging.error("Failed to clear temperature controller status.")
 
-            return self.get_data()
-        
-        else:
-            return "0000 0000 0000"
+        return self.get_data()
 
+    @skip_if_sim()
     def assess_status(self) -> None:
         status = self.get_status()
 
@@ -235,6 +234,7 @@ class peltier:
             status = self.clear_status()
             logging.info("New Status: " + status)
         
+    @skip_if_sim(default_return=True)
     def register_write(self, REGISTER_NUMBER: int, VALUE: int | float) -> bool:
         # Command set is built up by: Start char - command - data - stop char
         # Start Char "$""
@@ -255,36 +255,30 @@ class peltier:
         # Note commands are case sensitive
 
         # For RXX=, if data=int response is <Downloaded data>, if foat <no response>
-
-        if not self.sim:
-            msg = f"$R{REGISTER_NUMBER}={VALUE}"
-
-            self.ser.write((msg+'\r').encode('ascii'))
-
-            repeat = self.get_data().split(" ")[1]
-            response = self.get_data()
-            if (response == f"{VALUE}" or response == '') and repeat == msg:
-                #logging.info(f"Successfully wrote to R{REGISTER_NUMBER}.")
-                return True
-            else:
-                logging.error(f"Failed to write to R{REGISTER_NUMBER}.")
-                return False
-                            
-        else:
-            return True
         
-    def register_read(self, REGISTER_NUMBER: int) -> float | int:
-        if not self.sim:
-            msg = f"$R{REGISTER_NUMBER}?"
-            self.ser.write((msg+'\r').encode('ascii'))
+        msg = f"$R{REGISTER_NUMBER}={VALUE}"
 
-            repeat = self.get_data().split(" ")[1]
-            if repeat != msg:
-                logging.error(f"Failed to read R{REGISTER_NUMBER}.")
+        self.ser.write((msg+'\r').encode('ascii'))
 
-            return float(self.get_data())
+        repeat = self.get_data().split(" ")[1]
+        response = self.get_data()
+        if (response == f"{VALUE}" or response == '') and repeat == msg:
+            #logging.info(f"Successfully wrote to R{REGISTER_NUMBER}.")
+            return True
         else:
-            return random.uniform(self.min_temp, self.max_temp)
+            logging.error(f"Failed to write to R{REGISTER_NUMBER}.")
+            return False
+        
+    @skip_if_sim(default_return=0)
+    def register_read(self, REGISTER_NUMBER: int) -> float | int:
+        msg = f"$R{REGISTER_NUMBER}?"
+        self.ser.write((msg+'\r').encode('ascii'))
+
+        repeat = self.get_data().split(" ")[1]
+        if repeat != msg:
+            logging.error(f"Failed to read R{REGISTER_NUMBER}.")
+
+        return float(self.get_data())
         
     def set_regulator_mode(self, mode: int = 6) -> bool:
         # 1 = Power 
@@ -463,10 +457,8 @@ class peltier:
 
         self.set_run_flag()
     
-    def wait_until_temperature(self, value: float, sample_rate: float = 10, keep_on: bool = True) -> bool:
-        if self.sim:
-            return True
-        
+    @skip_if_sim(default_return=True)
+    def wait_until_temperature(self, value: float, sample_rate: float = 10, keep_on: bool = True) -> bool:        
         self.set_temperature(value)
         global_start = time.time()
 
@@ -505,6 +497,7 @@ class peltier:
         self.clear_run_flag()
         return False
     
+    @skip_if_sim(default_return=True)
     def plot_live_temperature_control(self, value: float, sample_rate: float = 1) -> bool:        
         self.set_temperature(value)
         global_start = time.time()
@@ -583,5 +576,3 @@ class peltier:
         # Turn controller OFF
         self.clear_run_flag()
         return False
-
-                

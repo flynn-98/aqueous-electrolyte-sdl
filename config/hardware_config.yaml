@@ -1,10 +1,10 @@
 serial:
-  pump_controller_A:
+  pump_controller_A: # Has 2x DC transfer pumps
     port: "COM5"
     baud: 115200
     mock: False
 
-  pump_controller_B:
+  pump_controller_B: # Has 4x DC waste pumps
     port: "COM6"
     baud: 115200
     mock: False
@@ -35,11 +35,15 @@ chemicals:
 
 # Default pump parameters used by the scheduler for priming / dosing.
 pumps:
-  # Calibration for stepper pumps
+  # Calibration for stepper pumps (currently hardcoded in firmware)
   ml_per_rev: 0.094
   # Calibration for DC pumps
-  default_pwm: 0.60
+  default_pwm: 60
   ml_per_s: 1.0
+  # Tube volumes between destinations
+  mix_to_cell_ml: 0.5
+  cell_to_waste_ml: 2.0
+  waste_no: 1 # 1..4
 
 measurements:
   # Root directory for results (your measurements() helper manages subfolders/mode files)
@@ -52,6 +56,7 @@ measurements:
 temperature:
   setpoints_C: [0.0, 10.0, 20.0, 40.0]
   tolerance_C: 0.3
+  steady_s: 120
   timeout_s: 1800
   wait_s: 120
   max_attempts: 10 # for reading to settle at each temperature
@@ -60,9 +65,9 @@ eis:
   conductivity_acceptance: 0.5 # mS/cm
   freq_start_Hz: 85000
   freq_end_Hz: 1
-  ppd: 20
   amplitude_v: 0.01
   bias_v: 0
+  ppd: 20
   measurements_per_temp: 1
 
 cv:
@@ -75,7 +80,7 @@ cv:
   measurements_per_temp: 1
 
 # Optional quick-start recipe (ml per chemical). Used by scheduler.__main__ only.
-example_recipe_ml:
+default_recipe_ml:
   Chem1: 5.0
   Chem2: 2.5
   Chem3: 1.0

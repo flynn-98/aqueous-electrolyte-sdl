@@ -21,6 +21,7 @@ dependencies = [
     "datetime",
     "matplotlib",
     "impedance",
+    "yaml",
 ]
 
 [project.optional-dependencies]

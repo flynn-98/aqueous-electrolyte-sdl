@@ -88,21 +88,19 @@ class pump_controller:
         self.check_response()
 
     @skip_if_sim()
-    def multi_pump(self, volumes: list[float]) -> None:
+    def multi_pump(self, volumes: list[float], check: bool = True) -> None:
         if len(volumes) != 4:
             raise ValueError("Exactly 4 volumes are required")
         
         args = ",".join(f"{float(v):.4f}" for v in volumes)
         self.ser.write(f"multiStepperPump({args})".encode())
 
-        self.check_response()
+        if check:
+            self.check_response()
 
     @skip_if_sim()
-    def transfer_pump(self, pump_no: int, pwm: float, seconds: float) -> None:
-        self.ser.write(f"singleStepperPump({pump_no},{pwm},{seconds})".encode())
-        self.check_response()
+    def transfer_pump(self, pump_no: int, pwm: float, seconds: float, check: bool = True) -> None:
+        self.ser.write(f"transferPump({pump_no},{pwm},{seconds})".encode())
 
-    @skip_if_sim()
-    def two_transfer_pumps(self, pwm: float, seconds: float) -> None:
-        self.ser.write(f"twoTransferPumps({pwm},{seconds})".encode())
-        self.check_response()
+        if check:
+            self.check_response()
