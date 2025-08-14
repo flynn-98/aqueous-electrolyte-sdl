@@ -1,37 +1,39 @@
-serial:
-  pump_controller_A: # Has 2x DC transfer pumps
-    port: "COM5"
-    baud: 115200
-    mock: False
+measurements:
+  results_root: ./results/
+  user: Wessel
+  project: MOFESS
+  electrolyte: KCl # Will be overwritten if new mixture is created.
+  cell_constant: 3 # /cm
+  cell_volume: 2.4 # ml
 
-  pump_controller_B: # Has 4x DC waste pumps
-    port: "COM6"
-    baud: 115200
-    mock: False
-
-  temperature_controller:
-    port: "COM9"
-    baud: 115200
-    mock: False
-
-  squidstat:
-    # If your squidstat.py uses another constructor arg (e.g., device index), adapt here.
-    port: "COM11"
-    channel: 0
-    instrument: "Plus2695"
-    mock: False
+# Optional quick-start recipe (ml per chemical).
+default_recipe_ml:
+  Chem1: 0.8
+  Chem2: 0.1
+  Chem3: 0.2
+  Chem4: 1.0
+  Chem5: 0.0
+  Chem6: 0.0
+  Chem7: 0.5
+  Chem8: 0.0
 
 # Map each chemical to its controller/pump index and prime volume to fill the tubing.
 # pump_index is 1..4 for each controller.
 chemicals:
-  Chem1: { controller: "A", pump_index: 1, prime_ml: 2.0 }
-  Chem2: { controller: "A", pump_index: 2, prime_ml: 2.0 }
-  Chem3: { controller: "A", pump_index: 3, prime_ml: 2.0 }
-  Chem4: { controller: "A", pump_index: 4, prime_ml: 2.0 }
-  Chem5: { controller: "B", pump_index: 1, prime_ml: 2.0 }
-  Chem6: { controller: "B", pump_index: 2, prime_ml: 2.0 }
-  Chem7: { controller: "B", pump_index: 3, prime_ml: 2.0 }
-  Chem8: { controller: "B", pump_index: 4, prime_ml: 2.0 }
+  Chem1: { controller: A, pump_index: 1, prime_ml: 2.0 }
+  Chem2: { controller: A, pump_index: 2, prime_ml: 2.0 }
+  Chem3: { controller: A, pump_index: 3, prime_ml: 2.0 }
+  Chem4: { controller: A, pump_index: 4, prime_ml: 2.0 }
+  Chem5: { controller: B, pump_index: 1, prime_ml: 2.0 }
+  Chem6: { controller: B, pump_index: 2, prime_ml: 2.0 }
+  Chem7: { controller: B, pump_index: 3, prime_ml: 2.0 }
+  Chem8: { controller: B, pump_index: 4, prime_ml: 2.0 }
+
+volumes:
+  # Tube volumes between destinations
+  mix_to_cell_ml: 0.5
+  cell_to_waste_ml: 2.0
+  waste_no: 1 # 1..4
 
 # Default pump parameters used by the scheduler for priming / dosing.
 pumps:
@@ -39,19 +41,7 @@ pumps:
   ml_per_rev: 0.094
   # Calibration for DC pumps
   default_pwm: 60
-  ml_per_s: 1.0
-  # Tube volumes between destinations
-  mix_to_cell_ml: 0.5
-  cell_to_waste_ml: 2.0
-  waste_no: 1 # 1..4
-
-measurements:
-  # Root directory for results (your measurements() helper manages subfolders/mode files)
-  results_root: "./results/"
-  user: "Wessel"
-  project: "MOFESS"
-  cell_constant: 3 # /cm
-  cell_volume: 2.4 # ml
+  ml_per_s: 0.5
 
 temperature:
   setpoints_C: [0.0, 10.0, 20.0, 40.0]
@@ -79,13 +69,24 @@ cv:
   cycles: 2
   measurements_per_temp: 1
 
-# Optional quick-start recipe (ml per chemical). Used by scheduler.__main__ only.
-default_recipe_ml:
-  Chem1: 5.0
-  Chem2: 2.5
-  Chem3: 1.0
-  Chem4: 1.5
-  Chem5: 0.0
-  Chem6: 0.0
-  Chem7: 0.0
-  Chem8: 0.0
+serial:
+  pump_controller_A: # Has 2x DC transfer pumps
+    port: /dev/cu.wchusbserial110
+    baud: 115200
+    mock: False
+
+  pump_controller_B: # Has 4x DC waste pumps
+    port: COM6
+    baud: 115200
+    mock: True
+
+  temperature_controller:
+    port: COM9
+    baud: 115200
+    mock: True
+
+  squidstat:
+    port: COM11
+    channel: 0
+    instrument: Plus2695
+    mock: True

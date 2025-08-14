@@ -9,7 +9,7 @@ logging.basicConfig(level = logging.INFO)
 
 def skip_if_sim(default_return = None):
     def decorator(func):
-        def wrapper(self: peltier, *args, **kwargs):
+        def wrapper(self, *args, **kwargs):
             if self.sim:
                 return default_return
             return func(self, *args, **kwargs)

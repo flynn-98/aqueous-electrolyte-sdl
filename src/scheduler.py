@@ -6,15 +6,17 @@ from typing import Dict, List, Tuple, Optional
 
 import yaml
 
-import argparse
-
-# Local hardware modules (from the user's codebase)
-from pump_controller import pump_controller
-from temperature_controller import peltier
-from electrochem_system import measurements
+# Local hardware modules
+from src.pump_controller import pump_controller
+from src.temperature_controller import peltier
+from src.electrochem_system import measurements
 
 log = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    filename="optimiser.log",
+    filemode="a",
+)
 
 class scheduler:
     def __init__(self, config_path: str) -> None:
@@ -74,20 +76,34 @@ class scheduler:
             if self._primed.get(chem, False):
                 continue
 
-            prime_ml = float(meta.get("prime_ml", 0.0))
-            if prime_ml <= 0:
-                log.info(f"Skipping prime for {chem} (prime_ml <= 0).")
-                self._primed[chem] = True
+            prime_ml = meta.get("prime_ml", 0.0)
+
+            if prime_ml <= 0 or prime_ml > 6:
+                log.warning(f"Check prime volume for {chem}, skipping for now..")
                 continue
 
             self._single_dose(chem, volume_ml=prime_ml)
-            log.info(f"Primed {chem} with {prime_ml} ml.")
+            log.info(f"Primed {chem} with {prime_ml}ml.")
+
             self._primed[chem] = True
 
             self.transfer_to_cell(check=False)
             self.transfer_to_waste(check=False)
 
             self._wait_for_responses()
+
+    def deprime_lines(self) -> None:
+        for chem, meta in self.chem_map.items():
+
+            prime_ml = meta.get("prime_ml", 0.0)
+            if prime_ml <= 0 or prime_ml > 6:
+                log.warning(f"Check prime volume for {chem}, skipping for now..")
+                continue
+
+            self._single_dose(chem, volume_ml=-prime_ml)
+
+            log.info(f"Deprimed {chem} with {-prime_ml}ml.")
+            self._primed[chem] = False
     
     def make_mixture(self, recipe_ml: Dict[str, float]) -> None:
         # Validate chemicals exist
@@ -100,7 +116,7 @@ class scheduler:
 
         # Ensure lines are primed before first actual dosing
         if not all(self._primed.values()):
-            log.info("Priming lines first...")
+            log.info("Priming lines first..")
             self.ensure_primed()
 
         # Build per‑controller pump seconds arrays (len=4 each)
@@ -110,24 +126,31 @@ class scheduler:
         for chem, vol_ml in recipe_ml.items():
             ctl, idx = self._where(chem)
             if ctl == "A":
-                ml_A[idx] = vol_ml
+                ml_A[idx-1] = vol_ml
             else:
-                ml_B[idx] = vol_ml
+                ml_B[idx-1] = vol_ml
 
         # Fire both controllers (start with controller A, then B)
         # First with check=False to fire both simulatenously, then check afterwards
+        log.info("Mixing all chemicals simulateously..")
+        log.info(f"Controller A: {ml_A}")
+        log.info(f"Controller B: {ml_B}")
+
         self.pumpA.multi_pump(ml_A, check=False)
         self.pumpB.multi_pump(ml_B, check=False)
         self._wait_for_responses()
 
-    def transfer_to_cell(self, check: bool):
-        extra_vol = self.cfg["pumps"].get("mix_to_cell_ml", 0)
+    def transfer_to_cell(self, check: bool = True):
+        log.info(f"Transferring {self.cell.test_cell_volume}ml to cell..")
+        extra_vol = self.cfg["volumes"].get("mix_to_cell_ml", 0)
 
         self._transfer_pump("A", 1, self.cell.test_cell_volume + extra_vol, check)
 
-    def transfer_to_waste(self, check: bool):
-        extra_vol = self.cfg["pumps"].get("cell_to_waste_ml", 0)
-        waste_no = self.cfg["pumps"].get("waste_no", 1)
+    def transfer_to_waste(self, check: bool = True):
+        extra_vol = self.cfg["volumes"].get("cell_to_waste_ml", 0)
+        waste_no = self.cfg["volumes"].get("waste_no", 1)
+
+        log.info(f"Transferring {self.cell.test_cell_volume}ml to waste #{waste_no}..")
 
         self._transfer_pump("B", waste_no, self.cell.test_cell_volume + extra_vol, check)
 
@@ -166,6 +189,40 @@ class scheduler:
         # Clear run flag on temperature controller
         self.tec.clear_run_flag()
 
+    def run_basic_experiment(self, recipe_ml: Optional[Dict[str, float]] = None, deprime = False) -> None:
+        # Temperatures and EIS parameters come from YAML
+        temps = self.cfg["temperature"]["setpoints_C"]
+        eis = self.cfg.get("eis", {})
+
+        if not recipe_ml:
+            recipe_ml = self.cfg.get("default_recipe_ml", {})
+
+        # Sanity checks
+        self.tec.handshake()
+        self.cell.metadata_check()
+
+        # Begin temperature regulation
+        self.tec.set_temperature(temps[0])
+        
+        self.make_mixture(recipe_ml)
+
+        self.transfer_to_cell(check=True)
+
+        self.run_temperature_sweep_with_eis(
+            setpoints_C = temps,
+            freq_start_Hz = eis["freq_start_Hz"],
+            freq_stop_Hz = eis["freq_end_Hz"],
+            voltage_amplitude = eis["amplitude_v"],
+            voltage_bias = eis["bias_v"],
+            points_per_decade = eis["ppd"],
+            measurements = eis["measurements_per_temp"],
+        )
+
+        self.transfer_to_waste(check=True)
+
+        if deprime:
+            self.deprime_lines()
+
     # -------------------- End Public API --------------------
 
     # -------------------- Internals --------------------
@@ -178,12 +235,12 @@ class scheduler:
         ctl = meta["controller"].strip().upper()
         idx = int(meta["pump_index"])
 
-        if ctl not in ("A", "B") or not (0 <= idx <= 3):
+        if ctl not in ("A", "B") or not (1 <= idx <= 4):
             raise ValueError(f"Bad mapping for {chemical}: {meta}")
         
         return ctl, idx
     
-    def _construct_mixture_title(recipe_ml: Dict[str, float]):
+    def _construct_mixture_title(self, recipe_ml: Dict[str, float]):
         parts = [
             f"{name}:{amount}ml"
             for name, amount in recipe_ml.items()
@@ -212,45 +269,3 @@ class scheduler:
         
         log.info(f"Dosing {chemical}: {volume_ml:.3f} ml on {ctl}[{idx}]")
         pump.single_pump(pump_no=idx, volume=volume_ml)
-
-# -------------------- Convenience runner --------------------
-def run_basic_experiment(config_path: str, waste: int, recipe_ml: Optional[Dict[str, float]]) -> None:
-    s = scheduler(config_path=config_path)
-
-    # Temperatures and EIS parameters come from YAML
-    temps = s.cfg["temperature"]["setpoints_C"]
-    eis = s.cfg.get("eis", {})
-
-    if not recipe_ml:
-        recipe_ml = s.cfg.get("default_recipe_ml", {})
-
-    # Sanity checks
-    s.tec.handshake()
-    s.cell.metadata_check()
-
-    # Begin temperature regulation
-    s.tec.set_temperature(temps[0])
-    
-    s.make_mixture(recipe_ml)
-
-    s.transfer_to_cell()
-
-    s.run_temperature_sweep_with_eis(
-        setpoints_C = temps,
-        freq_start_Hz = eis["freq_start_Hz"],
-        freq_stop_Hz = eis["freq_end_Hz"],
-        voltage_amplitude = eis["amplitude_v"],
-        voltage_bias = eis["bias_v"],
-        points_per_decade = eis["ppd"],
-        measurements = eis["measurements_per_temp"],
-    )
-
-    s.transfer_to_waste()
-
-if __name__ == "__main__":
-    # Minimal smoke test (sim=True recommended for first run)
-    p = argparse.ArgumentParser()
-    p.add_argument("--config", required=True, help="Path to YAML config")
-    args = p.parse_args()
-
-    run_basic_experiment(args.config)

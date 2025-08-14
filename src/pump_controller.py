@@ -7,7 +7,7 @@ logging.basicConfig(level = logging.INFO)
 
 def skip_if_sim(default_return = None):
     def decorator(func):
-        def wrapper(self: pump_controller, *args, **kwargs):
+        def wrapper(self, *args, **kwargs):
             if self.sim:
                 return default_return
             return func(self, *args, **kwargs)
@@ -38,12 +38,14 @@ class pump_controller:
             if self.check_status():
                 logging.info("Serial connection to pump controller established.")
 
+    @skip_if_sim(default_return="0")
     def get_data(self) -> str:
         while self.ser.in_waiting == 0:
             pass
 
         return self.ser.readline().decode().rstrip().replace("\x00", "")
         
+    @skip_if_sim()
     def check_response(self) -> None:
         while(1):
             data = self.get_data()
@@ -99,7 +101,7 @@ class pump_controller:
             self.check_response()
 
     @skip_if_sim()
-    def transfer_pump(self, pump_no: int, pwm: float, seconds: float, check: bool = True) -> None:
+    def transfer_pump(self, pump_no: int, pwm: float, seconds: float, check: bool) -> None:
         self.ser.write(f"transferPump({pump_no},{pwm},{seconds})".encode())
 
         if check:
