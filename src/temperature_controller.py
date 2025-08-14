@@ -1,6 +1,7 @@
 import logging
 import sys
 import time
+from math import floor
 
 import matplotlib.pyplot as plt
 import serial
@@ -23,8 +24,8 @@ class peltier:
         self.sim = sim
 
         # Default temperature wait parameters (might be overwritten)
-        self.allowable_error = 0.3 #C
-        self.steady_state = 120 #s (2mins)
+        self.allowable_error = 0.25 #C
+        self.steady_state = 90 #s
         self.timeout = 1800 #s (30mins)
         self.equilibrium_time = 300 #s (equilibrium time)
 
@@ -458,40 +459,47 @@ class peltier:
         self.set_run_flag()
     
     @skip_if_sim(default_return=True)
-    def wait_until_temperature(self, value: float, sample_rate: float = 10, keep_on: bool = True) -> bool:        
+    def wait_until_temperature(self, value: float, sample_rate: float = 30, keep_on: bool = True) -> bool:        
         self.set_temperature(value)
-        global_start = time.time()
+        temperature = self.get_t1_value()
 
-        while (time.time() - global_start) < self.timeout:
+        start = time.time()
+        elapsed_time = 0
+        count = 0
+
+        max_count = floor(self.steady_state / sample_rate)
+
+        while (elapsed_time < self.timeout) and (count < max_count):
+            elapsed_time = time.time() - start
             temperature = self.get_t1_value()
-            
-            local_start = time.time()
 
-            while (abs(value - temperature) < self.allowable_error) and (time.time() - local_start < self.steady_state):
-                
-                temperature = self.get_t1_value()
+            logging.info(f"Temperature progress is {round(temperature, 2)}/{value}C.")
+            logging.info(f"TEC Power: {round(self.get_tc_value(), 1)}% PWM -> {round(self.get_main_current(), 1)}A.")
 
-                logging.info(f"[ERROR < {self.allowable_error}] Temperature progress is {round(temperature, 2)}/{value}C ({round(self.get_tc_value(), 2)}% Power and {round(self.get_main_current(), 2)}A).")
-                time.sleep(sample_rate)
+            # Check steady state based on number of counts (depends on sample rate)
+            if abs(value - temperature) <= self.allowable_error:
+                count += 1
+                logging.info(f"Error < allowable error (count = {count})")
+            else:
+                count = 0
 
-            # Check if steady state timeout reached
-            if (time.time() - local_start) >= self.steady_state:
-                logging.info(f"Temperature controller successfully reached {value}C in {time.time() - global_start}s.")
+            time.sleep(sample_rate)
 
-                # Turn controller OFF if required
-                if keep_on is False:
-                    self.clear_run_flag()
-
-                logging.info(f"Waiting for {self.equilibrium_time}s for equilibrium..")
+        if count >= max_count:
+            logging.info(f"Temperature controller successfully reached {value}C in {time.time() - start}s.")
+        
+            # Turn controller OFF if required
+            if keep_on is False:
+                logging.info("Switching off TEC.")
+                self.clear_run_flag()
+            else:
+                logging.info(f"Waiting {self.equilibrium_time}s for system to settle before measurements..")
                 time.sleep(self.equilibrium_time)
 
-                return True
-            
-            logging.info(f"Temperature progress is {round(temperature, 2)}/{value}C ({round(self.get_tc_value(), 2)}% Power and {round(self.get_main_current(), 2)}A).")
-            time.sleep(sample_rate)
-            
+            return True
+        
         logging.error(f"Temperature controller timed out trying to reach {value}C.")
-        logging.info(f"Final peltier current is {round(self.get_main_current(), 2)}A.")
+        logging.info(f"Final TEC Power: {round(self.get_tc_value(), 1)}% PWM -> {round(self.get_main_current(), 1)}A.")
 
         # Turn controller OFF
         self.clear_run_flag()

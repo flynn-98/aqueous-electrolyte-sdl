@@ -190,6 +190,8 @@ class scheduler:
         self.tec.clear_run_flag()
 
     def run_basic_experiment(self, recipe_ml: Optional[Dict[str, float]] = None, deprime = False) -> None:
+        start = time.time()
+
         # Temperatures and EIS parameters come from YAML
         temps = self.cfg["temperature"]["setpoints_C"]
         eis = self.cfg.get("eis", {})
@@ -219,6 +221,9 @@ class scheduler:
         )
 
         self.transfer_to_waste(check=True)
+
+        end = time.time() - start
+        log.info(f"[TIMER] Experiment completed in {round(end / 60, 2)}mins.")
 
         if deprime:
             self.deprime_lines()
