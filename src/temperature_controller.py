@@ -27,7 +27,7 @@ class peltier:
         self.allowable_error = 0.25 #C
         self.steady_state = 90 #s
         self.timeout = 1800 #s (30mins)
-        self.equilibrium_time = 300 #s (equilibrium time)
+        self.equilibrium_time = 120 #s (settle time)
 
         # Fixed values
         self.max_temp = 40 #C

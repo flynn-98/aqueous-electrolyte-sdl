@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import logging
 import time
 from typing import Dict, List, Tuple, Optional
@@ -20,6 +18,14 @@ logging.basicConfig(
 
 class scheduler:
     def __init__(self, config_path: str) -> None:
+        """
+        Initialize the scheduler for hardware control.
+        Loads configuration from YAML, sets up pump controllers (A and B), temperature controller,
+        potentiostat, and measurement system. Maps chemicals to pumps and sets priming state.
+        
+        Args:
+            config_path (str): Path to YAML configuration file.
+        """
         self.cfg = self._load_config(config_path)
 
         # Pumps (two 4‑channel controllers → 8 chemicals total)
@@ -72,11 +78,16 @@ class scheduler:
     # -------------------- Public API --------------------
 
     def ensure_primed(self) -> None:
+        """
+        Ensure all chemical lines are primed before dosing.
+        For each chemical, if not already primed, dose the prime_ml volume, transfer to cell and waste,
+        and wait for hardware responses. Updates priming state.
+        """
         for chem, meta in self.chem_map.items():
             if self._primed.get(chem, False):
                 continue
 
-            prime_ml = meta.get("prime_ml", 0.0)
+            prime_ml = meta.get("prime_ml", 2.0)
 
             if prime_ml <= 0 or prime_ml > 6:
                 log.warning(f"Check prime volume for {chem}, skipping for now..")
@@ -93,6 +104,10 @@ class scheduler:
             self._wait_for_responses()
 
     def deprime_lines(self) -> None:
+        """
+        Remove priming solution from all chemical lines by transferring to waste.
+        Useful for cleaning or resetting the system before/after experiments.
+        """
         for chem, meta in self.chem_map.items():
 
             prime_ml = meta.get("prime_ml", 0.0)
@@ -106,6 +121,14 @@ class scheduler:
             self._primed[chem] = False
     
     def make_mixture(self, recipe_ml: Dict[str, float]) -> None:
+        """
+        Dose a mixture of chemicals according to the provided recipe.
+        Validates chemicals, updates electrolyte name, primes lines if needed, and doses each chemical
+        using the correct pump controller and channel. Waits for hardware responses after dosing.
+        
+        Args:
+            recipe_ml (Dict[str, float]): Mapping of chemical names to volumes (ml) to dose.
+        """
         # Validate chemicals exist
         unknown = [k for k in recipe_ml.keys() if k not in self.chem_map]
         if unknown:
@@ -141,18 +164,64 @@ class scheduler:
         self._wait_for_responses()
 
     def transfer_to_cell(self, check: bool = True):
+        """
+        Transfer the mixed solution from the mixing chamber to the test cell.
+        Uses pump controller A, channel 1, and adds any extra volume specified in config.
+        
+        Args:
+            check (bool): Whether to check hardware response after transfer.
+        """
         log.info(f"Transferring {self.cell.test_cell_volume}ml to cell..")
         extra_vol = self.cfg["volumes"].get("mix_to_cell_ml", 0)
 
         self._transfer_pump("A", 1, self.cell.test_cell_volume + extra_vol, check)
 
     def transfer_to_waste(self, check: bool = True):
+        """
+        Transfer the solution from the test cell to waste.
+        Uses pump controller B, configurable waste channel, and adds any extra volume specified in config.
+        
+        Args:
+            check (bool): Whether to check hardware response after transfer.
+        """
         extra_vol = self.cfg["volumes"].get("cell_to_waste_ml", 0)
         waste_no = self.cfg["volumes"].get("waste_no", 1)
 
         log.info(f"Transferring {self.cell.test_cell_volume}ml to waste #{waste_no}..")
 
         self._transfer_pump("B", waste_no, self.cell.test_cell_volume + extra_vol, check)
+
+    def system_flush(self, cleaning_agent: str = "Ethanol", flushing_agent: str = "Milli-Q"):
+        flush_volume = self.cfg["volumes"].get("flush_ml", 0)
+        cleaning_time = self.cfg["temperature"].get("cleaning_delay_s", 60)
+
+        log.info("Beginning heated cleaning procedure..")
+
+        # Heated cleaning with agent
+        self.tec.set_temperature(self.tec.max_temp)
+
+        # Quick flush to clear any salt from lines
+        log.info(f"Rinsing with {flushing_agent}.")
+        self._single_dose(flushing_agent, flush_volume)
+        self.transfer_to_cell(check=False)
+        self.transfer_to_waste(check=False)
+        self._wait_for_responses()
+
+        log.info(f"Cleaning with {cleaning_agent}.")
+        self._single_dose(cleaning_agent, flush_volume)
+        self.transfer_to_cell()
+        log.info(f"Cleaning for {cleaning_time}s.")
+        time.sleep(cleaning_time)
+        self.transfer_to_waste()
+
+        # Final flush
+        log.info(f"Final rinsing with {flushing_agent}.")
+        self._single_dose(flushing_agent, flush_volume)
+        self.transfer_to_cell(check=False)
+        self.transfer_to_waste(check=False)
+        self._wait_for_responses()
+
+        self.tec.clear_run_flag()
 
     def run_temperature_sweep_with_eis(
         self,
@@ -164,6 +233,20 @@ class scheduler:
         points_per_decade: int,
         measurements: int,
     ) -> None:
+        """
+        Run a temperature sweep with EIS (Electrochemical Impedance Spectroscopy) measurements.
+        For each temperature setpoint, waits for temperature controller to reach setpoint, then runs EIS
+        experiment using the potentiostat and measurement system. Handles hardware errors and clears run flag.
+        
+        Args:
+            setpoints_C (List[float]): List of temperature setpoints in Celsius.
+            freq_start_Hz (float): Starting frequency for EIS.
+            freq_stop_Hz (float): Ending frequency for EIS.
+            voltage_amplitude (float): Amplitude of voltage for EIS.
+            voltage_bias (float): Bias voltage for EIS.
+            points_per_decade (int): Number of points per frequency decade.
+            measurements (int): Number of measurements per temperature.
+        """
         
         for T in setpoints_C:
             log.info(f"Waiting until temperature = {T:.1f} C")
@@ -190,6 +273,15 @@ class scheduler:
         self.tec.clear_run_flag()
 
     def run_basic_experiment(self, recipe_ml: Optional[Dict[str, float]] = None, deprime = False) -> None:
+        """
+        Run a basic experiment using the scheduler and hardware modules.
+        Loads configuration, performs sanity checks, primes and doses chemicals, regulates temperature,
+        and runs EIS measurements. Transfers solution to cell and waste as needed. Optionally deprime lines after experiment.
+        
+        Args:
+            recipe_ml (Optional[Dict[str, float]]): Optional mapping of chemical names to volumes (ml) to dose.
+            deprime (bool): If True, deprime lines after experiment.
+        """
         start = time.time()
 
         # Temperatures and EIS parameters come from YAML
@@ -208,7 +300,7 @@ class scheduler:
         
         self.make_mixture(recipe_ml)
 
-        self.transfer_to_cell(check=True)
+        self.transfer_to_cell()
 
         self.run_temperature_sweep_with_eis(
             setpoints_C = temps,
@@ -220,7 +312,7 @@ class scheduler:
             measurements = eis["measurements_per_temp"],
         )
 
-        self.transfer_to_waste(check=True)
+        self.transfer_to_waste()
 
         end = time.time() - start
         log.info(f"[TIMER] Experiment completed in {round(end / 60, 2)}mins.")
@@ -232,10 +324,27 @@ class scheduler:
 
     # -------------------- Internals --------------------
     def _load_config(self, path: str) -> dict:
+        """
+        Load YAML configuration file for hardware and experiment settings.
+        
+        Args:
+            path (str): Path to YAML config file.
+        Returns:
+            dict: Parsed configuration dictionary.
+        """
         with open(path, "r", encoding="utf-8") as f:
             return yaml.safe_load(f)
 
     def _where(self, chemical: str) -> Tuple[str, int]:
+        """
+        Get the pump controller and channel index for a given chemical.
+        Validates mapping from config.
+        
+        Args:
+            chemical (str): Chemical name.
+        Returns:
+            Tuple[str, int]: Controller ('A' or 'B') and pump index (1-4).
+        """
         meta = self.chem_map[chemical]
         ctl = meta["controller"].strip().upper()
         idx = int(meta["pump_index"])
@@ -246,6 +355,15 @@ class scheduler:
         return ctl, idx
     
     def _construct_mixture_title(self, recipe_ml: Dict[str, float]):
+        """
+        Construct a string title for the mixture based on chemical names and volumes.
+        Used for metadata and logging.
+        
+        Args:
+            recipe_ml (Dict[str, float]): Mapping of chemical names to volumes (ml).
+        Returns:
+            str: Mixture title string.
+        """
         parts = [
             f"{name}:{amount}ml"
             for name, amount in recipe_ml.items()
@@ -254,6 +372,16 @@ class scheduler:
         return "-".join(parts)
 
     def _transfer_pump(self, ctl: str, pump_index: int, volume_ml: float, check: bool) -> None:
+        """
+        Transfer a specified volume using a given pump controller and channel.
+        Calculates pump time based on ml/s and PWM settings from config.
+        
+        Args:
+            ctl (str): Controller ('A' or 'B').
+            pump_index (int): Pump channel index (1-4).
+            volume_ml (float): Volume to transfer in ml.
+            check (bool): Whether to check hardware response after transfer.
+        """
         pump = self.pumpA if ctl == "A" else self.pumpB
 
         mlps = self.cfg["pumps"].get("ml_per_s", 1)
@@ -265,11 +393,35 @@ class scheduler:
         pump.transfer_pump(pump_no=pump_index, pwm=pwm, seconds=float(volume_ml / mlps), check=check)
 
     def _wait_for_responses(self):
+        """
+        Wait for both pump controllers to confirm completion of their last command.
+        """
         self.pumpA.check_response()
         self.pumpB.check_response()
+
+    def _get_pump(self, ctl: str):
+        """
+        Return correct pump controller instances based on if A or B passed.
+        """
+        ctl = ctl.upper().strip()
+        if ctl == "A": 
+            return self.pumpA
+        if ctl == "B":
+            return self.pumpB
+        
+        raise ValueError(f"Unknown controller '{ctl}'")
         
     def _single_dose(self, chemical: str, volume_ml: float) -> None:
+        """
+        Dose a single chemical using its mapped pump controller and channel.
+        Used for priming and single chemical dosing.
+        
+        Args:
+            chemical (str): Chemical name.
+            volume_ml (float): Volume to dose in ml.
+        """
         ctl, idx = self._where(chemical)
+
         pump = self.pumpA if ctl == "A" else self.pumpB
         
         log.info(f"Dosing {chemical}: {volume_ml:.3f} ml on {ctl}[{idx}]")

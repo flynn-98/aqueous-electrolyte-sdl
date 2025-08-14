@@ -8,8 +8,8 @@ measurements:
 
 # Optional quick-start recipe (ml per chemical).
 default_recipe_ml:
-  Chem1: 0.8
-  Chem2: 0.1
+  Milli-Q: 0.8
+  Ethanol: 0.1
   Chem3: 0.2
   Chem4: 1.0
   Chem5: 0.0
@@ -20,10 +20,10 @@ default_recipe_ml:
 # Map each chemical to its controller/pump index and prime volume to fill the tubing.
 # pump_index is 1..4 for each controller.
 chemicals:
-  Chem1: { controller: A, pump_index: 1, prime_ml: 2.0 }
-  Chem2: { controller: A, pump_index: 2, prime_ml: 2.0 }
-  Chem3: { controller: A, pump_index: 3, prime_ml: 2.0 }
-  Chem4: { controller: A, pump_index: 4, prime_ml: 2.0 }
+  Milli-Q: { controller: A, pump_index: 1, prime_ml: 0.2 }
+  Ethanol: { controller: A, pump_index: 2, prime_ml: 0.2 }
+  Chem3: { controller: A, pump_index: 3, prime_ml: 0.2 }
+  Chem4: { controller: A, pump_index: 4, prime_ml: 0.2 }
   Chem5: { controller: B, pump_index: 1, prime_ml: 2.0 }
   Chem6: { controller: B, pump_index: 2, prime_ml: 2.0 }
   Chem7: { controller: B, pump_index: 3, prime_ml: 2.0 }
@@ -34,6 +34,7 @@ volumes:
   mix_to_cell_ml: 0.5
   cell_to_waste_ml: 2.0
   waste_no: 1 # 1..4
+  flush_ml: 2.4
 
 # Default pump parameters used by the scheduler for priming / dosing.
 pumps:
@@ -50,6 +51,7 @@ temperature:
   timeout_s: 1800
   wait_s: 120
   max_attempts: 10 # for reading to settle at each temperature
+  cleaning_delay_s: 120
 
 eis:
   conductivity_acceptance: 0.5 # mS/cm
