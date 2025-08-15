@@ -64,7 +64,7 @@ class scheduler:
         self.tec.allowable_error = temp_cfg["tolerance_C"]
         self.tec.steady_state = temp_cfg["steady_s"]
         self.tec.timeout = temp_cfg["timeout_s"]
-        self.cell.max_attempts = temp_cfg["max_attempts"]
+        self.cell.settle_time = temp_cfg["settle_s"]
 
         # Map chemicals to (controller, pump_index)
         # Example entry in YAML:
@@ -72,53 +72,65 @@ class scheduler:
         #   Na2SO4: { controller: A, pump_index: 0, prime_ml: 6.0 }
         self.chem_map = self.cfg["chemicals"]
 
-        # Priming state per chemical (needed?)
-        self._primed = {name: False for name in self.chem_map.keys()}
+        # Primed state
+        self._primed = False
 
     # -------------------- Public API --------------------
 
-    def ensure_primed(self) -> None:
+
+    def smart_priming(self, just_deprime: bool = False) -> None:
         """
-        Ensure all chemical lines are primed before dosing.
-        For each chemical, if not already primed, dose the prime_ml volume, transfer to cell and waste,
-        and wait for hardware responses. Updates priming state.
+        Smart priming solution for all chemical lines by transferring to waste. 
+        Depriming always occurs first to prevent excess liquid in mixing chamber.
+        
+        Args:
+            just_deprime (bool): Set to true to block repriming. Defaults to False.
         """
+
+        # Build priming arrays
+        ml_A = [0.0, 0.0, 0.0, 0.0]
+        ml_B = [0.0, 0.0, 0.0, 0.0]
+
         for chem, meta in self.chem_map.items():
-            if self._primed.get(chem, False):
-                continue
+            ctl, idx = self._where(chem)
+            prime_ml = meta.get("prime_ml", 0.0)
 
-            prime_ml = meta.get("prime_ml", 2.0)
-
-            if prime_ml <= 0 or prime_ml > 6:
+            if prime_ml <= 0 or prime_ml > 10:
                 log.warning(f"Check prime volume for {chem}, skipping for now..")
                 continue
 
-            self._single_dose(chem, volume_ml=prime_ml)
-            log.info(f"Primed {chem} with {prime_ml}ml.")
+            if ctl == "A":
+                ml_A[idx-1] = prime_ml
+            elif ctl == "B":
+                ml_B[idx-1] = prime_ml
+            else:
+                raise ValueError(f"Unknown controller: {ctl}")
 
-            self._primed[chem] = True
+        log.info("Depriming all chemicals simulateously..")
+        log.info(f"Controller A: {ml_A}")
+        log.info(f"Controller B: {ml_B}")
+
+        # Deprime
+        self.pumpA.multi_pump([-x for x in ml_A], check=False)
+        self.pumpB.multi_pump([-x for x in ml_B], check=False)
+        self._wait_for_responses()
+
+        self._primed = False
+
+        if not just_deprime:
+            log.info("Repriming all chemicals simulateously..")
+
+            # Reprime
+            self.pumpA.multi_pump(ml_A, check=False)
+            self.pumpB.multi_pump(ml_B, check=False)
+            self._wait_for_responses()
+
+            self._primed = True
 
             self.transfer_to_cell(check=False)
             self.transfer_to_waste(check=False)
 
             self._wait_for_responses()
-
-    def deprime_lines(self) -> None:
-        """
-        Remove priming solution from all chemical lines by transferring to waste.
-        Useful for cleaning or resetting the system before/after experiments.
-        """
-        for chem, meta in self.chem_map.items():
-
-            prime_ml = meta.get("prime_ml", 0.0)
-            if prime_ml <= 0 or prime_ml > 6:
-                log.warning(f"Check prime volume for {chem}, skipping for now..")
-                continue
-
-            self._single_dose(chem, volume_ml=-prime_ml)
-
-            log.info(f"Deprimed {chem} with {-prime_ml}ml.")
-            self._primed[chem] = False
     
     def make_mixture(self, recipe_ml: Dict[str, float]) -> None:
         """
@@ -138,9 +150,13 @@ class scheduler:
         self.cell.electrolyte = self._construct_mixture_title(recipe_ml)
 
         # Ensure lines are primed before first actual dosing
-        if not all(self._primed.values()):
-            log.info("Priming lines first..")
-            self.ensure_primed()
+        if not self._primed:
+            log.info("System not primed. Priming and cleaning lines first..")
+
+            self.smart_priming()
+            self.system_flush()
+        else:
+            log.info("System already primed. Continuing..")
 
         # Build per‑controller pump seconds arrays (len=4 each)
         ml_A = [0.0, 0.0, 0.0, 0.0]
@@ -148,6 +164,10 @@ class scheduler:
 
         for chem, vol_ml in recipe_ml.items():
             ctl, idx = self._where(chem)
+
+            if vol_ml < 0:
+                vol_ml = 0
+
             if ctl == "A":
                 ml_A[idx-1] = vol_ml
             else:
@@ -200,7 +220,7 @@ class scheduler:
             flushing_agent (str): Name of flushing agent (E.g. Milli-Q Water), to match chemical name in config file.
         """
         flush_volume = self.cfg["volumes"].get("flush_ml", 0)
-        cleaning_time = self.cfg["temperature"].get("cleaning_delay_s", 60)
+        cleaning_time = self.cfg["temperature"].get("cleaning_s", 60)
 
         log.info("Beginning heated cleaning procedure..")
 
@@ -210,6 +230,7 @@ class scheduler:
         # Quick flush to clear any salt from lines
         log.info(f"Rinsing with {flushing_agent}.")
         self._single_dose(flushing_agent, flush_volume)
+        
         self.transfer_to_cell(check=False)
         self.transfer_to_waste(check=False)
         self._wait_for_responses()
@@ -217,8 +238,10 @@ class scheduler:
         log.info(f"Cleaning with {cleaning_agent}.")
         self._single_dose(cleaning_agent, flush_volume)
         self.transfer_to_cell()
+
         log.info(f"Cleaning for {cleaning_time}s.")
         time.sleep(cleaning_time)
+
         self.transfer_to_waste()
 
         # Final flush
@@ -279,15 +302,14 @@ class scheduler:
         # Clear run flag on temperature controller
         self.tec.clear_run_flag()
 
-    def run_basic_experiment(self, recipe_ml: Optional[Dict[str, float]] = None, deprime = False) -> None:
+    def run_basic_experiment(self, recipe_ml: Optional[Dict[str, float]] = None) -> None:
         """
         Run a basic experiment using the scheduler and hardware modules.
         Loads configuration, performs sanity checks, primes and doses chemicals, regulates temperature,
-        and runs EIS measurements. Transfers solution to cell and waste as needed. Optionally deprime lines after experiment.
+        and runs EIS measurements. Transfers solution to cell and waste as needed.
         
         Args:
             recipe_ml (Optional[Dict[str, float]]): Optional mapping of chemical names to volumes (ml) to dose.
-            deprime (bool): If True, deprime lines after experiment.
         """
         start = time.time()
 
@@ -323,9 +345,6 @@ class scheduler:
 
         end = time.time() - start
         log.info(f"[TIMER] Experiment completed in {round(end / 60, 2)}mins.")
-
-        if deprime:
-            self.deprime_lines()
 
     def update_yaml_volumes(self, values: dict) -> None:
         """
