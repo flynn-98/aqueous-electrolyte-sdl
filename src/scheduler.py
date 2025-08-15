@@ -82,7 +82,8 @@ class scheduler:
         self._primed = False
 
     # -------------------- Public API --------------------
-
+    def show_message(self, msg: str) -> None:
+        self.pumpA.display_oled_message(msg)
 
     def smart_priming(self, just_deprime: bool = False) -> None:
         """
@@ -92,6 +93,8 @@ class scheduler:
         Args:
             just_deprime (bool): Set to true to block repriming. Defaults to False.
         """
+
+        self.show_message("<-- Depriming")
 
         # Build priming arrays
         ml_A = [0.0, 0.0, 0.0, 0.0]
@@ -125,6 +128,7 @@ class scheduler:
 
         if not just_deprime:
             log.info("Repriming all chemicals simulateously..")
+            self.show_message("--> Repriming")
 
             # Reprime
             self.pumpA.multi_pump(ml_A, check=False)
@@ -137,6 +141,11 @@ class scheduler:
             self.transfer_to_waste(check=False)
 
             self._wait_for_responses()
+
+            self.show_message("System Reprimed!")
+
+        else:
+            self.show_message("System Deprimed!")
     
     def make_mixture(self, recipe_ml: Dict[str, float]) -> None:
         """
@@ -179,6 +188,9 @@ class scheduler:
             else:
                 ml_B[idx-1] = vol_ml
 
+        count = sum(1 for x in ml_A if x != 0) + sum(1 for x in ml_B if x != 0)
+        self.show_message(f"--> Mixing {count} Electrolytes")
+
         # Fire both controllers (start with controller A, then B)
         # First with check=False to fire both simulatenously, then check afterwards
         log.info("Mixing all chemicals simulateously..")
@@ -200,6 +212,8 @@ class scheduler:
         log.info(f"Transferring {self.cell.test_cell_volume}ml to cell..")
         extra_vol = self.cfg["volumes"].get("mix_to_cell_ml", 0)
 
+        self.show_message("--> Transferring to Cell")
+
         self._transfer_pump("A", 1, self.cell.test_cell_volume + extra_vol, check)
 
     def transfer_to_waste(self, check: bool = True):
@@ -212,6 +226,8 @@ class scheduler:
         """
         extra_vol = self.cfg["volumes"].get("cell_to_waste_ml", 0)
         waste_no = self.cfg["volumes"].get("waste_no", 1)
+
+        self.show_message(f"--> Transferring to Waste #{waste_no}")
 
         log.info(f"Transferring {self.cell.test_cell_volume}ml to waste #{waste_no}..")
 
@@ -233,6 +249,8 @@ class scheduler:
         # Heated cleaning with agent
         self.tec.set_temperature(self.tec.max_temp)
 
+        self.show_message("--> Rinsing Cell")
+
         # Quick flush to clear any salt from lines
         log.info(f"Rinsing with {flushing_agent}.")
         self._single_dose(flushing_agent, flush_volume)
@@ -240,6 +258,8 @@ class scheduler:
         self.transfer_to_cell(check=False)
         self.transfer_to_waste(check=False)
         self._wait_for_responses()
+
+        self.show_message("--> Cleaning Cell")
 
         log.info(f"Cleaning with {cleaning_agent}.")
         self._single_dose(cleaning_agent, flush_volume)
@@ -250,6 +270,8 @@ class scheduler:
 
         self.transfer_to_waste()
 
+        self.show_message("--> Rinsing Cell")
+
         # Final flush
         log.info(f"Final rinsing with {flushing_agent}.")
         self._single_dose(flushing_agent, flush_volume)
@@ -258,6 +280,7 @@ class scheduler:
         self._wait_for_responses()
 
         log.info(f"Waiting for another {cleaning_time}s for residue to evaporate.")
+        self.show_message(f"Cell Air Temperature: {self.tec.get_t1_value():.1f}C")
         time.sleep(cleaning_time)
 
         self.tec.clear_run_flag()
@@ -291,9 +314,13 @@ class scheduler:
         
         for T in setpoints_C:
             log.info(f"Waiting until temperature = {T:.1f} C")
+            self.show_message(f"Target: {self.tec.get_t1_value():.1f} -> {T:.1f}C")
+
             if not self.tec.wait_until_temperature(T):
                 raise RuntimeError("Temperature regulation failed!")
-
+            
+            self.show_message(f"Collecting EIS Data @ {self.tec.get_t1_value():.1f}C")
+        
             # Build and run the electrochemical experiment
             try:
                 id = self.cell.perform_EIS_experiment(
@@ -361,7 +388,10 @@ class scheduler:
         self.transfer_to_waste()
 
         end = time.time() - start
-        log.info(f"[TIMER] Experiment completed in {round(end / 60, 2)}mins.")
+        minutes = round(end / 60, 2)
+
+        self.show_message(f"Experiment Time = {minutes}m")
+        log.info(f"[TIMER] Experiment completed in {minutes}mins.")
 
     def update_yaml_volumes(self, values: dict) -> None:
         """

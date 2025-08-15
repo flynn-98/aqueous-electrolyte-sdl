@@ -5,21 +5,21 @@
     "sdlabs_group_id": "CAPeX_Pioneer_Center",
     "parameters": [
         {
-            "name": "ZnCl2",
+            "name": "Milli-Q",
             "low_value": 0,
             "high_value": 1500,
             "stride": 10,
             "type": "discrete"
         },
         {
-            "name": "Zn(ClO4)2",
+            "name": "Ethanol",
             "low_value": 0,
             "high_value": 1500,
             "stride": 10,
             "type": "discrete"
         },
         {
-            "name": "Zn(BF4)2",
+            "name": "KCl",
             "low_value": 0,
             "high_value": 1500,
             "stride": 10,
@@ -48,15 +48,15 @@
             "type": "linear_eq",
             "definitions": [
                 {
-                    "parameter": "ZnCl2",
+                    "parameter": "Milli-Q",
                     "weight": 1
                 },
                 {
-                    "parameter": "Zn(ClO4)2",
+                    "parameter": "Ethanol",
                     "weight": 1
                 },
                 {
-                    "parameter": "Zn(BF4)2",
+                    "parameter": "KCl",
                     "weight": 1
                 }
             ],

@@ -34,7 +34,7 @@ class pump_controller:
             if self.ser.isOpen() is False:
                 self.ser.open()
 
-            time.sleep(2)
+            time.sleep(5)
 
             # Check connection (blocking)
             if self.check_status():
