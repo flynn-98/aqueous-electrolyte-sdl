@@ -1,0 +1,9 @@
+recipe_ml:
+  Milli-Q: 0.8
+  Ethanol: 0.1
+  Chem3: 0.2
+  Chem4: 1.0
+  Chem5: 0.0
+  Chem6: 0.0
+  Chem7: 0.5
+  Chem8: 0.0

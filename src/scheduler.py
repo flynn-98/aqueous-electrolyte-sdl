@@ -3,6 +3,7 @@ import time
 from typing import Dict, List, Tuple, Optional
 
 import yaml
+import pandas as pd
 
 # Local hardware modules
 from src.pump_controller import pump_controller
@@ -17,7 +18,7 @@ logging.basicConfig(
 )
 
 class scheduler:
-    def __init__(self, config_path: str) -> None:
+    def __init__(self, recipe_path: str, config_path: str) -> None:
         """
         Initialize the scheduler for hardware control.
         Loads configuration from YAML, sets up pump controllers (A and B), temperature controller,
@@ -26,7 +27,9 @@ class scheduler:
         Args:
             config_path (str): Path to YAML configuration file.
         """
-        self.cfg_path = config_path
+        self.recipe_path = recipe_path
+        self.recipe = self._load_config(recipe_path)
+
         self.cfg = self._load_config(config_path)
 
         # Pumps (two 4‑channel controllers → 8 chemicals total)
@@ -71,6 +74,9 @@ class scheduler:
         # chemicals:
         #   Na2SO4: { controller: A, pump_index: 0, prime_ml: 6.0 }
         self.chem_map = self.cfg["chemicals"]
+
+        # To be populated after experiments
+        self.latest_ids = None
 
         # Primed state
         self._primed = False
@@ -262,7 +268,7 @@ class scheduler:
         voltage_bias: float,
         points_per_decade: int,
         measurements: int,
-    ) -> None:
+    ) -> List[str]:
         """
         Run a temperature sweep with EIS (Electrochemical Impedance Spectroscopy) measurements.
         For each temperature setpoint, waits for temperature controller to reach setpoint, then runs EIS
@@ -277,6 +283,8 @@ class scheduler:
             points_per_decade (int): Number of points per frequency decade.
             measurements (int): Number of measurements per temperature.
         """
+
+        ids = []
         
         for T in setpoints_C:
             log.info(f"Waiting until temperature = {T:.1f} C")
@@ -285,7 +293,7 @@ class scheduler:
 
             # Build and run the electrochemical experiment
             try:
-                self.cell.perform_EIS_experiment(
+                id = self.cell.perform_EIS_experiment(
                     start_frequency = freq_start_Hz,
                     end_frequency = freq_stop_Hz,
                     points_per_decade = points_per_decade,
@@ -295,12 +303,16 @@ class scheduler:
                     get_temperature_fn = self.tec.get_t1_value,
                     measurements = measurements
                 )
+                
+                ids.append(id)
 
             except Exception as e:
                 log.error(f"Electrochemical measurement failed: {e}")
 
         # Clear run flag on temperature controller
         self.tec.clear_run_flag()
+
+        return ids
 
     def run_basic_experiment(self, recipe_ml: Optional[Dict[str, float]] = None) -> None:
         """
@@ -318,7 +330,9 @@ class scheduler:
         eis = self.cfg.get("eis", {})
 
         if not recipe_ml:
-            recipe_ml = self.cfg.get("recipe_ml", {})
+            # Reload in case of user changes
+            self.recipe = self._load_config(self.recipe_path)
+            recipe_ml = self.recipe.get("recipe_ml", {})
 
         # Sanity checks
         self.tec.handshake()
@@ -331,7 +345,7 @@ class scheduler:
 
         self.transfer_to_cell()
 
-        self.run_temperature_sweep_with_eis(
+        self.latest_ids = self.run_temperature_sweep_with_eis(
             setpoints_C = temps,
             freq_start_Hz = eis["freq_start_Hz"],
             freq_stop_Hz = eis["freq_end_Hz"],
@@ -348,15 +362,15 @@ class scheduler:
 
     def update_yaml_volumes(self, values: dict) -> None:
         """
-        Update 'recipe_ml' in self.cfg with new dose volumes (uL -> mL).
-        Writes updated self.cfg back to self.cfg_path.
+        Update 'recipe_ml' in self.recipe with new dose volumes (uL -> mL).
+        Writes updated self.recipe back to self.recipe_path.
         """
 
-        if "recipe_ml" not in self.cfg:
+        if "recipe_ml" not in self.recipe:
             log.warning("'recipe_ml' not in config; creating it.")
-            self.cfg["recipe_ml"] = {}
+            self.recipe["recipe_ml"] = {}
 
-        recipe = self.cfg["recipe_ml"]
+        recipe = self.recipe["recipe_ml"]
 
         # 1) Set *all existing* entries to zero (safety: prevent unintended aspirations)
         for chem in list(recipe.keys()):
@@ -384,8 +398,8 @@ class scheduler:
         log.info(f"New recipe total volume = {total_ml}ml.")
 
         # 3) Save back to YAML
-        with open(self.cfg_path, "w", encoding="utf-8") as f:
-            yaml.dump(self.cfg, f, sort_keys=False)
+        with open(self.recipe_path, "w", encoding="utf-8") as f:
+            yaml.dump(self.recipe, f, sort_keys=False)
 
     def calculate_cost(self) -> float:
         """
@@ -393,7 +407,7 @@ class scheduler:
         - Uses self.cfg['recipe_ml'] volumes in mL
         - Uses self.cfg['chemicals'][name]['cost'] as cost per mL
         """
-        recipe = self.cfg.get("recipe_ml", {})
+        recipe = self.recipe.get("recipe_ml", {})
         chems  = self.cfg.get("chemicals", {})
 
         total = 0
@@ -412,6 +426,56 @@ class scheduler:
 
         logging.info(f"Total recipe cost = {total:.6g}")
         return total
+
+    def aggregate_results_from_ids(
+        self,
+        agg_column: str,
+        ids: Optional[List[str]] = None,
+        agg_fn: Optional[str] = "mean"
+    ) -> float:
+        """
+        Load results CSV and aggregate values for the given IDs.
+
+        Args:
+            ids: List of experiment IDs to filter by.
+            agg_column: Column name in CSV to aggregate.
+            agg_fn: Aggregation function ('mean', 'sum', 'median').
+
+        Returns:
+            Aggregated value (float) or None if no matching rows.
+        """
+
+        if not ids:
+            ids = self.latest_ids
+
+        try:
+            df = pd.read_csv(self.cell.master_csv)
+        except FileNotFoundError:
+            logging.error(f"Results CSV not found: {self.cell.master_csv}")
+            return None
+        except Exception as e:
+            logging.error(f"Error reading results CSV: {e}")
+            return None
+
+        # Filter for matching IDs
+        df_filtered = df[df["Unique ID"].isin(ids)]
+
+        if df_filtered.empty:
+            logging.warning("No matching rows found for latest IDs.")
+            return None
+
+        if agg_column not in df_filtered.columns:
+            logging.error(f"Column '{agg_column}' not found in results CSV.")
+            return None
+
+        try:
+            result = df_filtered[agg_column].agg(agg_fn)
+            logging.info(f"Aggregated {agg_fn} of '{agg_column}' for {len(df_filtered)} rows = {result}")
+            return result
+        
+        except Exception as e:
+            logging.error(f"Error aggregating column '{agg_column}': {e}")
+            return None
 
     # -------------------- End Public API --------------------
 

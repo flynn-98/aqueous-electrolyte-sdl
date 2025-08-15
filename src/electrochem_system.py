@@ -131,7 +131,7 @@ class measurements:
         if self.user == "Unknown" or self.project == "Unknown" or self.electrolyte == "Unknown":
             raise RuntimeError("Metadata incomplete!")
     
-    @skip_if_sim()
+    @skip_if_sim(default_return="NA")
     def perform_EIS_experiment(self,
         start_frequency: float,
         end_frequency: float,
@@ -141,7 +141,7 @@ class measurements:
         target_temperature: float,
         get_temperature_fn: Optional[Callable[[], float]] = None,
         measurements: int = 1
-        ) -> None:
+        ) -> str:
         
         self.metadata_check()
 
@@ -233,6 +233,8 @@ class measurements:
                     'Voltage Bias (V)': voltage_bias,
                     'Timestamp': datetime.now(),
                     })
+                
+        return id
             
     def plot_EIS(self, f: any, Z: any, Z_fit: any, identifier: str = "na", metadata: dict = {}) -> list:
         logging.info("Saving EIS plot (Dataset " + identifier + ")..")
