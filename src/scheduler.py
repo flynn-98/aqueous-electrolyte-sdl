@@ -113,8 +113,8 @@ class scheduler:
                 raise ValueError(f"Unknown controller: {ctl}")
 
         log.info("Depriming all chemicals simulateously..")
-        log.info(f"Controller A: {ml_A}")
-        log.info(f"Controller B: {ml_B}")
+        log.info(f"Controller A: {ml_A} ml")
+        log.info(f"Controller B: {ml_B} ml")
 
         # Deprime
         self.pumpA.multi_pump([-x for x in ml_A], check=False)
@@ -256,6 +256,9 @@ class scheduler:
         self.transfer_to_cell(check=False)
         self.transfer_to_waste(check=False)
         self._wait_for_responses()
+
+        log.info(f"Waiting for another {cleaning_time}s for residue to evaporate.")
+        time.sleep(cleaning_time)
 
         self.tec.clear_run_flag()
 

@@ -39,7 +39,7 @@ temperature:
   steady_s: 120
   timeout_s: 1800
   settle_s: 60
-  cleaning_s: 120
+  cleaning_s: 60
 
 eis:
   freq_start_Hz: 85000
@@ -61,7 +61,7 @@ serial:
   pump_controller_A: # Has 2x DC transfer pumps
     port: /dev/cu.wchusbserial110
     baud: 115200
-    mock: False
+    mock: True
 
   pump_controller_B: # Has 4x DC waste pumps
     port: COM6
