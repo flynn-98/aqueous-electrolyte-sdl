@@ -60,7 +60,9 @@ class scheduler:
         self.cell.project = meas_cfg.get("project", "Unknown")
         self.cell.electrolyte = meas_cfg.get("electrolyte", "Unknown")
         self.cell.cell_constant = meas_cfg["cell_constant"]
-        self.cell.test_cell_volume = meas_cfg["cell_volume"]
+
+        self.test_cell_volume = meas_cfg["cell_volume"]
+        self.electrolyte_volume = meas_cfg["electrolyte_volume"]
 
         # Populate temperature related constants
         temp_cfg = self.cfg.get("temperature", {})
@@ -188,6 +190,10 @@ class scheduler:
             else:
                 ml_B[idx-1] = vol_ml
 
+        total_ml = sum(x for x in ml_A) + sum(x for x in ml_B)
+        if total_ml > self.electrolyte_volume:
+            log.error(f"Total mixture volume is greater than expected electrolyte volume: {total_ml} > {self.electrolyte_volume}")
+
         count = sum(1 for x in ml_A if x != 0) + sum(1 for x in ml_B if x != 0)
         self.show_message(f"--> Mixing {count} Electrolytes")
 
@@ -201,20 +207,24 @@ class scheduler:
         self.pumpB.multi_pump(ml_B, check=False)
         self._wait_for_responses()
 
-    def transfer_to_cell(self, check: bool = True):
+    def transfer_to_cell(self, check: bool = True, cell_no: int = 1):
         """
         Transfer the mixed solution from the mixing chamber to the test cell.
         Uses pump controller A, channel 1, and adds any extra volume specified in config.
         
         Args:
             check (bool): Whether to check hardware response after transfer.
+            cell_no (int): Transfer to cell 1 or cell 2. Defaults to 1.
         """
-        log.info(f"Transferring {self.cell.test_cell_volume}ml to cell..")
-        extra_vol = self.cfg["volumes"].get("mix_to_cell_ml", 0)
+        if cell_no < 1 or cell_no > 2:
+            raise ValueError(f"Cell number provided is incompatible: {cell_no}")
 
-        self.show_message("--> Transferring to Cell")
+        log.info(f"Transferring {self.cell.test_cell_volume}ml to cell #{cell_no}..")
+        extra_vol = self.cfg["system"].get("mix_to_cell_ml", 0)
 
-        self._transfer_pump("A", 1, self.cell.test_cell_volume + extra_vol, check)
+        self.show_message(f"--> Transferring to Cell #{cell_no}")
+
+        self._transfer_pump("A", cell_no, self.cell.test_cell_volume + extra_vol, check)
 
     def transfer_to_waste(self, check: bool = True):
         """
@@ -224,8 +234,8 @@ class scheduler:
         Args:
             check (bool): Whether to check hardware response after transfer.
         """
-        extra_vol = self.cfg["volumes"].get("cell_to_waste_ml", 0)
-        waste_no = self.cfg["volumes"].get("waste_no", 1)
+        extra_vol = self.cfg["system"].get("cell_to_waste_ml", 0)
+        waste_no = self.cfg["system"].get("waste_no", 1)
 
         self.show_message(f"--> Transferring to Waste #{waste_no}")
 
@@ -241,7 +251,7 @@ class scheduler:
             cleaning_agent (str): Name of cleaning agent (e.g. Ethanol), to match chemical name in config file.
             flushing_agent (str): Name of flushing agent (E.g. Milli-Q Water), to match chemical name in config file.
         """
-        flush_volume = self.cfg["volumes"].get("flush_ml", 0)
+        flush_volume = self.cell.test_cell_volume
         cleaning_time = self.cfg["temperature"].get("cleaning_s", 60)
 
         log.info("Beginning heated cleaning procedure..")
@@ -398,7 +408,6 @@ class scheduler:
         Update 'recipe_ml' in self.recipe with new dose volumes (uL -> mL).
         Writes updated self.recipe back to self.recipe_path.
         """
-
         if "recipe_ml" not in self.recipe:
             log.warning("'recipe_ml' not in config; creating it.")
             self.recipe["recipe_ml"] = {}
@@ -430,6 +439,9 @@ class scheduler:
 
         log.info(f"New recipe total volume = {total_ml}ml.")
 
+        if total_ml > self.electrolyte_volume:
+            log.error(f"Total volume from Atinary is greater than expected electrolyte volume: {total_ml} > {self.electrolyte_volume}")
+
         # 3) Save back to YAML
         with open(self.recipe_path, "w", encoding="utf-8") as f:
             yaml.dump(self.recipe, f, sort_keys=False)
@@ -437,7 +449,7 @@ class scheduler:
     def calculate_cost(self) -> float:
         """
         Compute total cost from self.cfg after update_yaml_volumes() has run.
-        - Uses self.cfg['recipe_ml'] volumes in mL
+        - Uses self.recipe['recipe_ml'] volumes in mL
         - Uses self.cfg['chemicals'][name]['cost'] as cost per mL
         """
         recipe = self.recipe.get("recipe_ml", {})

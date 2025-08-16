@@ -40,7 +40,6 @@ class measurements:
 
         self.epsilon_0 = 8.8541878128e-12 # vacuum permittivity
         self.cell_constant = 8 # to be set from hardcoded values
-        self.test_cell_volume = 2.4 # ml
 
         self.master_csv = None
 
