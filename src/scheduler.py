@@ -19,7 +19,7 @@ logging.basicConfig(
 )
 
 class scheduler:
-    def __init__(self, recipe_path: str, config_path: str) -> None:
+    def __init__(self, config_path: str, recipe_path: str = None) -> None:
         """
         Initialize the scheduler for hardware control.
         Loads configuration from YAML, sets up pump controllers (A and B), temperature controller,
@@ -27,9 +27,14 @@ class scheduler:
         
         Args:
             config_path (str): Path to YAML configuration file.
+            recipe_path (str): Path to YAML recipe file. Optional.
         """
-        self.recipe_path = recipe_path
-        self.recipe = self._load_config(recipe_path)
+        if recipe_path:
+            self.recipe_path = recipe_path
+            self.recipe = self._load_config(recipe_path)
+        else:
+            self.recipe_path = None
+            self.recipe = None
 
         self.cfg = self._load_config(config_path)
 
@@ -44,7 +49,12 @@ class scheduler:
             
         self.pumpA = pump
 
-        self.pumpB = PumpController(COM=pumpB_cfg["port"], baud=pumpB_cfg["baud"], sim=pumpB_cfg["mock"], timeout=pumpB_cfg["timeout"])
+        if pumpB_cfg["ble"]:
+            pump = PumpControllerBLE(device_name=pumpB_cfg["ble_name"], sim=pumpB_cfg["mock"], timeout=pumpB_cfg["timeout"])
+        else:
+            pump = PumpController(COM=pumpB_cfg["port"], baud=pumpB_cfg["baud"], sim=pumpB_cfg["mock"], timeout=pumpB_cfg["timeout"])
+
+        self.pumpB = pump
 
         # Temperature controller
         pel_cfg = self.cfg["communication"]["temperature_controller"]

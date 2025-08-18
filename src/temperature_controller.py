@@ -72,7 +72,7 @@ class PeltierModule:
         self.dead_band = 4 #+-% to prevent rapid switching
 
         if self.sim:
-            logging.info("Simulated connection to pump controller established.")
+            logging.info("Simulated connection to temperature controller established.")
 
         else:
             logging.info("Configuring temperature controller serial port..")

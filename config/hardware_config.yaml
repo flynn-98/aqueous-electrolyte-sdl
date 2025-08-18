@@ -61,16 +61,18 @@ communication:
   pump_controller_A: # Has 2x DC transfer pumps
     port: /dev/cu.wchusbserial10
     baud: 115200
-    mock: False
-    ble: True
-    ble_name: PumpController
+    mock: True
     timeout: 60
+    ble: True
+    ble_name: PumpControllerA
 
   pump_controller_B: # Has 4x DC waste pumps
     port: COM6
     baud: 115200
     mock: True
     timeout: 60
+    ble: True
+    ble_name: PumpControllerB
 
   temperature_controller:
     port: COM9

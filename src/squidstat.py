@@ -93,7 +93,9 @@ class SquidStat:
         # Create dataframes
         self.reset_dataframes()
         
-        if not self.sim:
+        if self.sim:
+            logging.info("Simulated connection to squidstat established.")
+        else:
             # Attach functions to call during events
             self.tracker.newDeviceConnected.connect(self.handle_device_connected)
             
