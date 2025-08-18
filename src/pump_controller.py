@@ -59,8 +59,7 @@ class PumpController:
             if '#' in data:
                 break
             elif "Unknown command" in data:
-                logging.error("Pump controller failed to recognise command: " + data)
-                sys.exit()
+                raise RuntimeError("Pump controller failed to recognise command: " + data)
             else:
                 logging.info("Response from pump controller: " + data)
 

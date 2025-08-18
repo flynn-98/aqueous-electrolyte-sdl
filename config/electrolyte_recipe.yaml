@@ -1,7 +1,7 @@
 recipe_ml:
-  Milli-Q: 0.59
-  Ethanol: 0.88
-  KCl: 0.03
+  Milli-Q: 0.47
+  Ethanol: 1.0
+  KCl: 0.0
   Chem4: 0.0
   Chem5: 0.0
   Chem6: 0.0

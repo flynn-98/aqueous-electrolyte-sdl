@@ -146,11 +146,7 @@ class scheduler:
             self._wait_for_responses()
 
             self._primed = True
-
-            self.transfer_to_cell(check=False)
-            self.transfer_to_waste(check=False)
-
-            self._wait_for_responses()
+            self.clear_system()
 
             self.show_message("System Reprimed!")
 
@@ -230,10 +226,11 @@ class scheduler:
         log.info(f"Transferring {self.test_cell_volume}ml to cell #{cell_no}..")
         extra_vol = self.cfg["system"].get("mix_to_cell_ml", 0)
 
-        self.show_message(f"--> Transferring to Cell #{cell_no}")
+        if check is True:
+            self.show_message(f"--> Transferring to Cell #{cell_no}")
 
         self._transfer_pump("A", cell_no, self.test_cell_volume + extra_vol, check)
-
+        
     def transfer_to_waste(self, check: bool = True):
         """
         Transfer the solution from the test cell to waste.
@@ -245,11 +242,23 @@ class scheduler:
         extra_vol = self.cfg["system"].get("cell_to_waste_ml", 0)
         waste_no = self.cfg["system"].get("waste_no", 1)
 
-        self.show_message(f"--> Transferring to Waste #{waste_no}")
+        if check is True:
+            self.show_message(f"--> Transferring to Waste #{waste_no}")
 
         log.info(f"Transferring {self.test_cell_volume}ml to waste #{waste_no}..")
 
         self._transfer_pump("B", waste_no, self.test_cell_volume + extra_vol, check)
+
+    def clear_system(self):
+        """
+        Transfer contents of mixing chamber straight to waste.
+        """
+        self.show_message("--> Clearing System")
+
+        self.transfer_to_cell(check=False)
+        self.transfer_to_waste(check=False)
+
+        self._wait_for_responses()
 
     def system_flush(self, cleaning_agent: str = "Ethanol", flushing_agent: str = "Milli-Q"):
         """
@@ -273,9 +282,7 @@ class scheduler:
         log.info(f"Rinsing with {flushing_agent}.")
         self._single_dose(flushing_agent, flush_volume)
         
-        self.transfer_to_cell(check=False)
-        self.transfer_to_waste(check=False)
-        self._wait_for_responses()
+        self.clear_system()
 
         self.show_message("--> Cleaning Cell")
 
@@ -293,9 +300,7 @@ class scheduler:
         # Final flush
         log.info(f"Final rinsing with {flushing_agent}.")
         self._single_dose(flushing_agent, flush_volume)
-        self.transfer_to_cell(check=False)
-        self.transfer_to_waste(check=False)
-        self._wait_for_responses()
+        self.clear_system()
 
         log.info(f"Waiting for another {cleaning_time}s for residue to evaporate.")
         self.show_message(f"Cell Air Temperature: {self.tec.get_t1_value():.1f}C")

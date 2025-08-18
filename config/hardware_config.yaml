@@ -10,14 +10,14 @@ measurements:
 # Map each chemical to its controller/pump index and prime volume to fill the tubing.
 # pump_index is 1..4 for each controller, cost is per ml
 chemicals:
-  Milli-Q: { controller: A, pump_index: 1, prime_ml: 2.0, cost: 0.01 }
-  Ethanol: { controller: A, pump_index: 2, prime_ml: 2.0, cost: 0.5 }
-  KCl: { controller: A, pump_index: 3, prime_ml: 2.0, cost: 4 }
-  Chem4: { controller: A, pump_index: 4, prime_ml: 2.0, cost: 1 }
-  Chem5: { controller: B, pump_index: 1, prime_ml: 2.0, cost: 1 }
-  Chem6: { controller: B, pump_index: 2, prime_ml: 2.0, cost: 1 }
-  Chem7: { controller: B, pump_index: 3, prime_ml: 2.0, cost: 1 }
-  Chem8: { controller: B, pump_index: 4, prime_ml: 2.0, cost: 1 }
+  Milli-Q: { controller: A, pump_index: 1, prime_ml: 1.0, cost: 0.01 }
+  Ethanol: { controller: A, pump_index: 2, prime_ml: 1.0, cost: 0.5 }
+  KCl: { controller: A, pump_index: 3, prime_ml: 1.0, cost: 4 }
+  Chem4: { controller: A, pump_index: 4, prime_ml: 1.0, cost: 1 }
+  Chem5: { controller: B, pump_index: 1, prime_ml: 1.0, cost: 1 }
+  Chem6: { controller: B, pump_index: 2, prime_ml: 1.0, cost: 1 }
+  Chem7: { controller: B, pump_index: 3, prime_ml: 1.0, cost: 1 }
+  Chem8: { controller: B, pump_index: 4, prime_ml: 1.0, cost: 1 }
 
 system:
   # Tube volumes between destinations

@@ -151,8 +151,7 @@ class PumpControllerBLE:
             if '#' in data:
                 break
             elif "Unknown command" in data:
-                logging.error("Pump controller failed to recognise command: " + data)
-                sys.exit(1)
+                raise RuntimeError("Pump controller failed to recognise command: " + data)
             else:
                 logging.info("Response from pump controller: " + data)
 
@@ -258,6 +257,7 @@ if __name__ == "__main__":
     print("Status:", ctrl.status_check())
     print("Temp:", ctrl.get_temperature())
     print("Hum:", ctrl.get_humidity())
-    ctrl.display_message("Hello BLE")
+    ctrl.display_oled_message("Hello BLE")
+    ctrl.transfer_pump(1, 60, 10, check=True)
     ctrl.multi_pump([0.1,0.2,0.3,0.4], check=True)
     ctrl.close()
