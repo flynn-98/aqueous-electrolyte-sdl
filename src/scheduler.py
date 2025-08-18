@@ -6,9 +6,10 @@ import yaml
 import pandas as pd
 
 # Local hardware modules
-from src.pump_controller import pump_controller
-from src.temperature_controller import peltier
-from src.electrochem_system import measurements
+from src.pump_controller import PumpController
+from src.pump_controller_ble import PumpControllerBLE
+from src.temperature_controller import PeltierModule
+from src.electrochem_system import ECMeasurements
 
 log = logging.getLogger(__name__)
 logging.basicConfig(
@@ -33,21 +34,28 @@ class scheduler:
         self.cfg = self._load_config(config_path)
 
         # Pumps (two 4‑channel controllers → 8 chemicals total)
-        pumpA_cfg = self.cfg["serial"]["pump_controller_A"]
-        pumpB_cfg = self.cfg["serial"]["pump_controller_B"]
-        self.pumpA = pump_controller(COM=pumpA_cfg["port"], baud=pumpA_cfg["baud"], sim=pumpA_cfg["mock"])
-        self.pumpB = pump_controller(COM=pumpB_cfg["port"], baud=pumpB_cfg["baud"], sim=pumpB_cfg["mock"])
+        pumpA_cfg = self.cfg["communication"]["pump_controller_A"]
+        pumpB_cfg = self.cfg["communication"]["pump_controller_B"]
+
+        if pumpA_cfg["ble"]:
+            pump = PumpControllerBLE(device_name=pumpA_cfg["ble_name"], sim=pumpA_cfg["mock"], timeout=pumpA_cfg["timeout"])
+        else:
+            pump = PumpController(COM=pumpA_cfg["port"], baud=pumpA_cfg["baud"], sim=pumpA_cfg["mock"], timeout=pumpA_cfg["timeout"])
+            
+        self.pumpA = pump
+
+        self.pumpB = PumpController(COM=pumpB_cfg["port"], baud=pumpB_cfg["baud"], sim=pumpB_cfg["mock"], timeout=pumpB_cfg["timeout"])
 
         # Temperature controller
-        pel_cfg = self.cfg["serial"]["temperature_controller"]
-        self.tec = peltier(COM=pel_cfg["port"], baud=pel_cfg["baud"], sim=pel_cfg["mock"])
+        pel_cfg = self.cfg["communication"]["temperature_controller"]
+        self.tec = PeltierModule(COM=pel_cfg["port"], baud=pel_cfg["baud"], sim=pel_cfg["mock"])
 
         # Potentiostat
-        squid_cfg = self.cfg["serial"]["squidstat"]
+        squid_cfg = self.cfg["communication"]["squidstat"]
 
         # Measurements helper (for data/paths, post-processing, etc.)
         meas_cfg = self.cfg.get("measurements", {})
-        self.cell = measurements(
+        self.cell = ECMeasurements(
             squid_port=squid_cfg["port"], 
             instrument=squid_cfg["instrument"],
             results_path=meas_cfg.get("results_root", "./results") ,
@@ -219,12 +227,12 @@ class scheduler:
         if cell_no < 1 or cell_no > 2:
             raise ValueError(f"Cell number provided is incompatible: {cell_no}")
 
-        log.info(f"Transferring {self.cell.test_cell_volume}ml to cell #{cell_no}..")
+        log.info(f"Transferring {self.test_cell_volume}ml to cell #{cell_no}..")
         extra_vol = self.cfg["system"].get("mix_to_cell_ml", 0)
 
         self.show_message(f"--> Transferring to Cell #{cell_no}")
 
-        self._transfer_pump("A", cell_no, self.cell.test_cell_volume + extra_vol, check)
+        self._transfer_pump("A", cell_no, self.test_cell_volume + extra_vol, check)
 
     def transfer_to_waste(self, check: bool = True):
         """
@@ -239,9 +247,9 @@ class scheduler:
 
         self.show_message(f"--> Transferring to Waste #{waste_no}")
 
-        log.info(f"Transferring {self.cell.test_cell_volume}ml to waste #{waste_no}..")
+        log.info(f"Transferring {self.test_cell_volume}ml to waste #{waste_no}..")
 
-        self._transfer_pump("B", waste_no, self.cell.test_cell_volume + extra_vol, check)
+        self._transfer_pump("B", waste_no, self.test_cell_volume + extra_vol, check)
 
     def system_flush(self, cleaning_agent: str = "Ethanol", flushing_agent: str = "Milli-Q"):
         """
@@ -251,7 +259,7 @@ class scheduler:
             cleaning_agent (str): Name of cleaning agent (e.g. Ethanol), to match chemical name in config file.
             flushing_agent (str): Name of flushing agent (E.g. Milli-Q Water), to match chemical name in config file.
         """
-        flush_volume = self.cell.test_cell_volume
+        flush_volume = self.test_cell_volume
         cleaning_time = self.cfg["temperature"].get("cleaning_s", 60)
 
         log.info("Beginning heated cleaning procedure..")
@@ -627,4 +635,4 @@ class scheduler:
         pump = self.pumpA if ctl == "A" else self.pumpB
         
         log.info(f"Dosing {chemical}: {volume_ml:.3f} ml on {ctl}[{idx}]")
-        pump.single_pump(pump_no=idx, volume=volume_ml)
+        pump.single_pump(pump_no=idx, ml=volume_ml)

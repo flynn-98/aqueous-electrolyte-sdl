@@ -14,9 +14,10 @@ def skip_if_sim(default_return = None):
         return wrapper
     return decorator
 
-class pump_controller:
-    def __init__(self, COM: str, baud: int = 115200, sim: bool = False):
+class PumpController:
+    def __init__(self, COM: str, baud: int = 115200, sim: bool = False, timeout: float = 60.0):
         self.sim = sim
+        self.timeout = timeout
 
         if self.sim:
             logging.info("Simulated connection to pump controller established.")
@@ -28,13 +29,15 @@ class pump_controller:
             self.ser.bytesize = 8 
             self.ser.parity = 'N' # No parity
             self.ser.stopbits = 1
+            self.ser.timeout = self.timeout
 
             logging.info("Attempting to open pump controller serial port..")
 
             if self.ser.isOpen() is False:
                 self.ser.open()
 
-            time.sleep(5)
+            # Give time for controller to wake up
+            time.sleep(2)
 
             # Check connection (blocking)
             if self.check_status():
@@ -49,7 +52,8 @@ class pump_controller:
         
     @skip_if_sim()
     def check_response(self) -> None:
-        while(1):
+        start = time.time()
+        while(time.time() - start < self.timeout):
             data = self.get_data()
             # Wait for response and check that command was understood
             if '#' in data:
@@ -87,16 +91,16 @@ class pump_controller:
         return float(self.get_data())
         
     @skip_if_sim()
-    def single_pump(self, pump_no: int, volume: float) -> None:
-        self.ser.write(f"singleStepperPump({pump_no},{volume:.4f})".encode())
+    def single_pump(self, pump_no: int, ml: float) -> None:
+        self.ser.write(f"singleStepperPump({pump_no},{ml:.3f})".encode())
         self.check_response()
 
     @skip_if_sim()
-    def multi_pump(self, volumes: list[float], check: bool = True) -> None:
-        if len(volumes) != 4:
+    def multi_pump(self, ml: list[float], check: bool = True) -> None:
+        if len(ml) != 4:
             raise ValueError("Exactly 4 volumes are required")
         
-        args = ",".join(f"{float(v):.4f}" for v in volumes)
+        args = ",".join(f"{float(v):.3f}" for v in ml)
         self.ser.write(f"multiStepperPump({args})".encode())
 
         if check:

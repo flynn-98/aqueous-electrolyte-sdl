@@ -57,16 +57,20 @@ cv:
   cycles: 3
   measurements_per_temp: 3 # minimum to give error bars
 
-serial:
+communication:
   pump_controller_A: # Has 2x DC transfer pumps
     port: /dev/cu.wchusbserial10
     baud: 115200
     mock: False
+    ble: True
+    ble_name: PumpController
+    timeout: 60
 
   pump_controller_B: # Has 4x DC waste pumps
     port: COM6
     baud: 115200
     mock: True
+    timeout: 60
 
   temperature_controller:
     port: COM9

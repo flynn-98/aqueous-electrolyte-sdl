@@ -27,7 +27,7 @@ from SquidstatPyLibrary import (
 # Suppress FutureWarning messages from Pandas
 logging.basicConfig(level = logging.INFO)
 
-class squidstat:
+class SquidStat:
     def __init__(self, COM: str, instrument: str, results_path: str, channel: int = 0, sim: bool = False) -> None:
         self.sim = sim
 

@@ -13,7 +13,7 @@ from impedance.models.circuits import Randles
 from impedance.visualization import plot_nyquist, plot_bode
 from scipy.signal import find_peaks
 
-from src.squidstat import squidstat
+from src.squidstat import SquidStat
 
 def skip_if_sim(default_return = None):
     def decorator(func):
@@ -24,11 +24,11 @@ def skip_if_sim(default_return = None):
         return wrapper
     return decorator
 
-class measurements:
+class ECMeasurements:
     def __init__(self, squid_port: str, instrument: str, results_path: str, channel: int = 0, squid_sim: bool = False) -> None:
 
         self.sim = squid_sim
-        self.squid = squidstat(COM=squid_port, instrument=instrument, results_path=results_path, channel=channel, sim=squid_sim)
+        self.squid = SquidStat(COM=squid_port, instrument=instrument, results_path=results_path, channel=channel, sim=squid_sim)
 
         # Metadata
         self.user = "Unknown"

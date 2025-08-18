@@ -19,7 +19,7 @@ def skip_if_sim(default_return = None):
 
 # To communicate with: https://lairdthermal.com/products/product-temperature-controllers/tc-xx-pr-59-temperature-controller
 
-class peltier:
+class PeltierModule:
     def __init__(self, COM: str, baud: int = 115200, sim: bool = False) -> None:
         self.sim = sim
 
