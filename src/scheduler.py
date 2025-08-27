@@ -103,7 +103,7 @@ class scheduler:
 
     # -------------------- Public API --------------------
     def show_message(self, msg: str) -> None:
-        self.pumpA.display_oled_message(msg)
+        self.pumpB.display_oled_message(msg)
 
     def smart_priming(self, just_deprime: bool = False) -> None:
         """

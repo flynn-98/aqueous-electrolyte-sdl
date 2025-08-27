@@ -30,11 +30,11 @@ pumps:
   # Calibration for stepper pumps (currently hardcoded in firmware)
   ml_per_rev: 0.094
   # Calibration for DC pumps
-  default_pwm: 60
+  default_pwm: 70
   ml_per_s: 0.5
 
 temperature:
-  setpoints_C: [0.0, 10.0, 20.0, 40.0]
+  setpoints_C: [30] #[0.0, 10.0, 20.0, 40.0]
   tolerance_C: 0.25 # plus or minus
   steady_s: 120
   timeout_s: 1800
@@ -61,7 +61,7 @@ communication:
   pump_controller_A: # Has 2x DC transfer pumps
     port: /dev/cu.wchusbserial10
     baud: 115200
-    mock: True
+    mock: False
     timeout: 60
     ble: True
     ble_name: PumpControllerA
@@ -69,7 +69,7 @@ communication:
   pump_controller_B: # Has 4x DC waste pumps
     port: COM6
     baud: 115200
-    mock: True
+    mock: False
     timeout: 60
     ble: True
     ble_name: PumpControllerB

@@ -19,7 +19,7 @@ def skip_if_sim(default_return=None):
         return wrapper
     return decorator
 
-DEVICE_NAME_DEFAULT = "PumpController"
+DEVICE_NAME_DEFAULT = "PumpControllerA"
 
 class PumpControllerBLE:
     """
@@ -191,18 +191,18 @@ class PumpControllerBLE:
         self.check_response()
 
     @skip_if_sim()
-    def single_pump(self, pump_no: int, ml: float, check: bool = True) -> None:
-        self._call(self._write_async(f"singleStepperPump({pump_no},{ml:.3f})"))
+    def single_pump(self, pump_no: int, ml: float, flow_rate: float = 0.05, check: bool = True) -> None:
+        self._call(self._write_async(f"singleStepperPump({pump_no},{ml:.3f},{flow_rate:.3f})"))
         if check:
             self.check_response()
 
     @skip_if_sim()
-    def multi_pump(self, ml: List[float], check: bool = True) -> None:
+    def multi_pump(self, ml: List[float], flow_rate: float = 0.05, check: bool = True) -> None:
         if len(ml) != 4:
             raise ValueError("Exactly 4 volumes are required")
         
         args = ",".join(f"{float(v):.3f}" for v in ml)
-        self._call(self._write_async(f"multiStepperPump({args})"))
+        self._call(self._write_async(f"multiStepperPump({args},{flow_rate:.3f})"))
         if check:
             self.check_response()
 
@@ -255,9 +255,9 @@ class PumpControllerBLE:
 if __name__ == "__main__":
     ctrl = PumpControllerBLE()
     print("Status:", ctrl.status_check())
-    print("Temp:", ctrl.get_temperature())
-    print("Hum:", ctrl.get_humidity())
-    ctrl.display_oled_message("Hello BLE")
-    ctrl.transfer_pump(1, 60, 10, check=True)
-    ctrl.multi_pump([0.1,0.2,0.3,0.4], check=True)
-    ctrl.close()
+    #print("Temp:", ctrl.get_temperature())
+    #print("Hum:", ctrl.get_humidity())
+    #ctrl.display_oled_message("Hello BLE")
+    #ctrl.transfer_pump(1, 70, 5)
+    #ctrl.transfer_pump(2, 70, 5)
+    ctrl.multi_pump([1.0,2.0,3.0,4.0], 0.05)
