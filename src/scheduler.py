@@ -115,6 +115,7 @@ class scheduler:
         """
 
         self.show_message("<-- Depriming")
+        flow_rate = self.cfg["pumps"].get("priming_flowrate", 0.05)
 
         # Build priming arrays
         ml_A = [0.0, 0.0, 0.0, 0.0]
@@ -140,8 +141,8 @@ class scheduler:
         log.info(f"Controller B: {ml_B} ml")
 
         # Deprime
-        self.pumpA.multi_pump([-x for x in ml_A], check=False)
-        self.pumpB.multi_pump([-x for x in ml_B], check=False)
+        self.pumpA.multi_pump([-x for x in ml_A], flow_rate=flow_rate, check=False)
+        self.pumpB.multi_pump([-x for x in ml_B], flow_rate=flow_rate, check=False)
         self._wait_for_responses()
 
         self._primed = False
@@ -151,8 +152,8 @@ class scheduler:
             self.show_message("--> Repriming")
 
             # Reprime
-            self.pumpA.multi_pump(ml_A, check=False)
-            self.pumpB.multi_pump(ml_B, check=False)
+            self.pumpA.multi_pump(ml_A, flow_rate=flow_rate, check=False)
+            self.pumpB.multi_pump(ml_B, flow_rate=flow_rate, check=False)
             self._wait_for_responses()
 
             self._primed = True
@@ -211,14 +212,16 @@ class scheduler:
         count = sum(1 for x in ml_A if x != 0) + sum(1 for x in ml_B if x != 0)
         self.show_message(f"--> Mixing {count} Electrolytes")
 
+        flow_rate = self.cfg["pumps"].get("mixing_flowrate", 0.05)
+
         # Fire both controllers (start with controller A, then B)
         # First with check=False to fire both simulatenously, then check afterwards
         log.info("Mixing all chemicals simulateously..")
         log.info(f"Controller A: {ml_A}")
         log.info(f"Controller B: {ml_B}")
 
-        self.pumpA.multi_pump(ml_A, check=False)
-        self.pumpB.multi_pump(ml_B, check=False)
+        self.pumpA.multi_pump(ml_A, flow_rate=flow_rate, check=False)
+        self.pumpB.multi_pump(ml_B, flow_rate=flow_rate, check=False)
         self._wait_for_responses()
 
     def transfer_to_cell(self, check: bool = True, cell_no: int = 1):
@@ -235,11 +238,12 @@ class scheduler:
 
         log.info(f"Transferring {self.test_cell_volume}ml to cell #{cell_no}..")
         extra_vol = self.cfg["system"].get("mix_to_cell_ml", 0)
+        pwm = self.cfg["pumps"].get("transfer_pwm", 100)
 
         if check is True:
             self.show_message(f"--> Transferring to Cell #{cell_no}")
 
-        self._transfer_pump("A", cell_no, self.test_cell_volume + extra_vol, check)
+        self._transfer_pump("A", cell_no, self.test_cell_volume + extra_vol, pwm, check)
         
     def transfer_to_waste(self, check: bool = True):
         """
@@ -251,13 +255,14 @@ class scheduler:
         """
         extra_vol = self.cfg["system"].get("cell_to_waste_ml", 0)
         waste_no = self.cfg["system"].get("waste_no", 1)
+        pwm = self.cfg["pumps"].get("waste_pwm", 100)
 
         if check is True:
             self.show_message(f"--> Transferring to Waste #{waste_no}")
 
         log.info(f"Transferring {self.test_cell_volume}ml to waste #{waste_no}..")
 
-        self._transfer_pump("B", waste_no, self.test_cell_volume + extra_vol, check)
+        self._transfer_pump("B", waste_no, self.test_cell_volume + extra_vol, pwm, check)
 
     def clear_system(self):
         """
@@ -265,10 +270,8 @@ class scheduler:
         """
         self.show_message("--> Clearing System")
 
-        self.transfer_to_cell(check=False)
-        self.transfer_to_waste(check=False)
-
-        self._wait_for_responses()
+        self.transfer_to_cell()
+        self.transfer_to_waste()
 
     def system_flush(self, cleaning_agent: str = "Ethanol", flushing_agent: str = "Milli-Q"):
         """
@@ -280,6 +283,7 @@ class scheduler:
         """
         flush_volume = self.test_cell_volume
         cleaning_time = self.cfg["temperature"].get("cleaning_s", 60)
+        flow_rate = self.cfg["pumps"].get("mixing_flowrate", 0.05)
 
         log.info("Beginning heated cleaning procedure..")
 
@@ -290,14 +294,14 @@ class scheduler:
 
         # Quick flush to clear any salt from lines
         log.info(f"Rinsing with {flushing_agent}.")
-        self._single_dose(flushing_agent, flush_volume)
+        self._single_dose(flushing_agent, flush_volume, flow_rate)
         
         self.clear_system()
 
         self.show_message("--> Cleaning Cell")
 
         log.info(f"Cleaning with {cleaning_agent}.")
-        self._single_dose(cleaning_agent, flush_volume)
+        self._single_dose(cleaning_agent, flush_volume, flow_rate)
         self.transfer_to_cell()
 
         log.info(f"Cleaning for {cleaning_time}s.")
@@ -309,7 +313,7 @@ class scheduler:
 
         # Final flush
         log.info(f"Final rinsing with {flushing_agent}.")
-        self._single_dose(flushing_agent, flush_volume)
+        self._single_dose(flushing_agent, flush_volume, flow_rate)
         self.clear_system()
 
         log.info(f"Waiting for another {cleaning_time}s for residue to evaporate.")
@@ -596,7 +600,7 @@ class scheduler:
         ]
         return "-".join(parts)
 
-    def _transfer_pump(self, ctl: str, pump_index: int, volume_ml: float, check: bool) -> None:
+    def _transfer_pump(self, ctl: str, pump_index: int, volume_ml: float, pwm: float, check: bool) -> None:
         """
         Transfer a specified volume using a given pump controller and channel.
         Calculates pump time based on ml/s and PWM settings from config.
@@ -608,9 +612,7 @@ class scheduler:
             check (bool): Whether to check hardware response after transfer.
         """
         pump = self.pumpA if ctl == "A" else self.pumpB
-
-        mlps = self.cfg["pumps"].get("ml_per_s", 1)
-        pwm = self.cfg["pumps"].get("default_pwm", 60)
+        mlps = self.cfg["pumps"].get("ml_per_s", 0.5)
 
         if mlps <= 0 or abs(pwm) > 100:
             raise ValueError("Incorrect variables given for PWM!")
@@ -636,7 +638,7 @@ class scheduler:
         
         raise ValueError(f"Unknown controller '{ctl}'")
         
-    def _single_dose(self, chemical: str, volume_ml: float) -> None:
+    def _single_dose(self, chemical: str, volume_ml: float, flow_rate: float) -> None:
         """
         Dose a single chemical using its mapped pump controller and channel.
         Used for priming and single chemical dosing.
@@ -650,4 +652,4 @@ class scheduler:
         pump = self.pumpA if ctl == "A" else self.pumpB
         
         log.info(f"Dosing {chemical}: {volume_ml:.3f} ml on {ctl}[{idx}]")
-        pump.single_pump(pump_no=idx, ml=volume_ml)
+        pump.single_pump(pump_no=idx, ml=volume_ml, flow_rate=flow_rate)

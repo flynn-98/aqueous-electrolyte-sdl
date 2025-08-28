@@ -29,8 +29,11 @@ system:
 pumps:
   # Calibration for stepper pumps (currently hardcoded in firmware)
   ml_per_rev: 0.094
+  mixing_flowrate: 0.05 # ml/s
+  priming_flowrate: 0.25
   # Calibration for DC pumps
-  default_pwm: 70
+  transfer_pwm: 70 # %
+  waste_pwm: 100
   ml_per_s: 0.5
 
 temperature:
