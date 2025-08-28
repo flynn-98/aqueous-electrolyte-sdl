@@ -30,7 +30,7 @@ pumps:
   # Calibration for stepper pumps (currently hardcoded in firmware)
   ml_per_rev: 0.094
   mixing_flowrate: 0.05 # ml/s
-  priming_flowrate: 0.25
+  priming_flowrate: 0.2
   # Calibration for DC pumps
   transfer_pwm: 70 # %
   waste_pwm: 100
@@ -78,9 +78,9 @@ communication:
     ble_name: PumpControllerB
 
   temperature_controller:
-    port: COM9
+    port: /dev/cu.usbserial-CLEBb136G04
     baud: 115200
-    mock: True
+    mock: False
 
   squidstat:
     port: COM11

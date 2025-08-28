@@ -138,7 +138,7 @@ class ECMeasurements:
         voltage_amplitude: float,
         voltage_bias: float,
         target_temperature: float,
-        get_temperature_fn: Optional[Callable[[], float]] = None,
+        get_temperature_fn: Callable[[], float],
         measurements: int = 1
         ) -> str:
         
@@ -353,9 +353,9 @@ class ECMeasurements:
         sampling_interval: float,
         cycles: int,
         target_temperature: float,
-        get_temperature_fn: Optional[Callable[[], float]] = None,
+        get_temperature_fn: Callable[[], float],
         measurements: int = 1
-        ) -> None:
+        ) -> str:
 
         self.metadata_check()
 
@@ -445,6 +445,8 @@ class ECMeasurements:
                     'Sampling Interval (s)': sampling_interval,
                     'Cycles': cycles,
                     })
+                
+        return id
 
     def plot_cyclic_voltammogram(self, voltage, current, identifier: str = "na", metadata: dict = {}) -> None:
         logging.info(f"Saving CV plot (Dataset {identifier})...")

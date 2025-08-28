@@ -2,6 +2,7 @@ import logging
 import sys
 import time
 from math import floor
+from typing import Callable
 
 import matplotlib.pyplot as plt
 import serial
@@ -51,25 +52,25 @@ class PeltierModule:
 
         # Heating/Cooling control
         self.heating_tc = 60 #%
-        self.heating_Kp = 8
-        self.heating_Ki = 0.02
+        self.heating_Kp = 14
+        self.heating_Ki = 0.2
         self.heating_Kd = 0.0
 
         self.cooling_tc = 85 #%
-        self.cooling_Kp = 12
-        self.cooling_Ki = 0.1
+        self.cooling_Kp = 14
+        self.cooling_Ki = 0.2
         self.cooling_Kd = 0.0
 
         self.subzero_tc = 100 #%
-        self.subzero_Kp = 14
-        self.subzero_Ki = 0.2
+        self.subzero_Kp = 16
+        self.subzero_Ki = 0.4
         self.subzero_Kd = 0.0
 
         self.run_flag = False
 
         self.temp_threshold = 15 #C, to set heating or cooling parameters
         self.subzero_threshold = 0 #C
-        self.dead_band = 4 #+-% to prevent rapid switching
+        self.dead_band = 2 #+-% to prevent rapid switching
 
         if self.sim:
             logging.info("Simulated connection to temperature controller established.")
@@ -163,10 +164,12 @@ class PeltierModule:
         repeat = self.get_data()
         info = self.get_data()
 
-        if info.split(" ")[1] == "TC-XX-PR-59" and repeat == msg:
+        split = info.split(" ")[1]
+
+        if split == "TC-XX-PR-59" and repeat == msg:
             logging.info("TEC located: " + info)
         else:
-            raise RuntimeError("Temperature controller handshake failed: check connection!")
+            raise RuntimeError(f"Temperature controller handshake failed: check connection! (Response: {split})")
 
     @skip_if_sim()
     def set_run_flag(self) -> None:
@@ -458,7 +461,13 @@ class PeltierModule:
         self.set_run_flag()
     
     @skip_if_sim(default_return=True)
-    def wait_until_temperature(self, value: float, sample_rate: float = 30, keep_on: bool = True) -> bool:        
+    def wait_until_temperature(self, 
+                            value: float,
+                            show_temperature_fn: Callable[[str], None],
+                            sample_rate: float = 30, 
+                            keep_on: bool = True,
+                            ) -> bool:      
+          
         self.set_temperature(value)
         temperature = self.get_t1_value()
 
@@ -466,7 +475,7 @@ class PeltierModule:
         elapsed_time = 0
         count = 0
 
-        max_count = floor(self.steady_state / sample_rate)
+        max_count = floor(self.steady_state / sample_rate) - 1
 
         while (elapsed_time < self.timeout) and (count < max_count):
             elapsed_time = time.time() - start
@@ -482,7 +491,10 @@ class PeltierModule:
             else:
                 count = 0
 
-            time.sleep(sample_rate)
+            local_start = time.time()
+            while time.time() - local_start < sample_rate:
+                show_temperature_fn(f"Cell Temperature: {self.get_t1_value():.1f}C @ {self.get_tc_value():.1f}% Power")
+                time.sleep(5)
 
         if count >= max_count:
             logging.info(f"Temperature controller successfully reached {value}C in {time.time() - start}s.")

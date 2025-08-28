@@ -283,7 +283,7 @@ class scheduler:
         """
         flush_volume = self.test_cell_volume
         cleaning_time = self.cfg["temperature"].get("cleaning_s", 60)
-        flow_rate = self.cfg["pumps"].get("mixing_flowrate", 0.05)
+        flow_rate = self.cfg["pumps"].get("priming_flowrate", 0.05)
 
         log.info("Beginning heated cleaning procedure..")
 
@@ -304,8 +304,11 @@ class scheduler:
         self._single_dose(cleaning_agent, flush_volume, flow_rate)
         self.transfer_to_cell()
 
+        self.show_message(f"Waiting for {cleaning_time}s")
         log.info(f"Cleaning for {cleaning_time}s.")
-        time.sleep(cleaning_time)
+
+        if not self.cell.sim:
+            time.sleep(cleaning_time)
 
         self.transfer_to_waste()
 
@@ -317,8 +320,10 @@ class scheduler:
         self.clear_system()
 
         log.info(f"Waiting for another {cleaning_time}s for residue to evaporate.")
-        self.show_message(f"Cell Air Temperature: {self.tec.get_t1_value():.1f}C")
-        time.sleep(cleaning_time)
+        self.show_message(f"Waiting for {cleaning_time}s @ {self.tec.get_t1_value():.1f}C")
+        
+        if not self.cell.sim:
+            time.sleep(cleaning_time)
 
         self.tec.clear_run_flag()
 
@@ -353,7 +358,7 @@ class scheduler:
             log.info(f"Waiting until temperature = {T:.1f} C")
             self.show_message(f"Target: {self.tec.get_t1_value():.1f} -> {T:.1f}C")
 
-            if not self.tec.wait_until_temperature(T):
+            if not self.tec.wait_until_temperature(T, show_temperature_fn=self.show_message):
                 raise RuntimeError("Temperature regulation failed!")
             
             self.show_message(f"Collecting EIS Data @ {self.tec.get_t1_value():.1f}C")
@@ -402,11 +407,8 @@ class scheduler:
             recipe_ml = self.recipe.get("recipe_ml", {})
 
         # Sanity checks
-        self.tec.handshake()
+        #self.tec.handshake()
         self.cell.metadata_check()
-
-        # Begin temperature regulation
-        self.tec.set_temperature(temps[0])
         
         self.make_mixture(recipe_ml)
 
