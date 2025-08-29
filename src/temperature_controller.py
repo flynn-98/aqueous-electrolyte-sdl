@@ -30,7 +30,7 @@ class PeltierModule:
         self.timeout = 1800 #s (30mins)
 
         # Fixed values
-        self.max_temp = 40 #C
+        self.max_temp = 50 #C
         self.min_temp = -20 #C
 
         self.input_voltage = 12.0 #V
@@ -51,23 +51,25 @@ class PeltierModule:
         self.C_coeff_2 = 8.3896e-8
 
         # Heating/Cooling control
-        self.heating_tc = 30 #%
-        self.heating_Kp = 20
-        self.heating_Ki = 1.0
-        self.heating_Kd = 0.0
-        self.heating_ilim = 20
+        # Heating should be proportional-driven, cooling should be more integral-driven
 
-        self.cooling_tc = 80 #%
-        self.cooling_Kp = 20
-        self.cooling_Ki = 1.0
+        self.heating_tc = 50 #%
+        self.heating_Kp = 10 # deadband / allowable_error
+        self.heating_Ki = 0.0
+        self.heating_Kd = 0.0
+        self.heating_ilim = 0.0
+
+        self.cooling_tc = 75 #%
+        self.cooling_Kp = 15
+        self.cooling_Ki = 0.5
         self.cooling_Kd = 0.0
-        self.cooling_ilim = 60
+        self.cooling_ilim = 20.0
 
         self.subzero_tc = 100 #%
         self.subzero_Kp = 20
         self.subzero_Ki = 1.0
         self.subzero_Kd = 0.0
-        self.subzero_ilim = 100
+        self.subzero_ilim = 50.0
 
         self.run_flag = False
 
