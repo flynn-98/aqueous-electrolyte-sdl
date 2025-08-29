@@ -51,20 +51,23 @@ class PeltierModule:
         self.C_coeff_2 = 8.3896e-8
 
         # Heating/Cooling control
-        self.heating_tc = 60 #%
-        self.heating_Kp = 14
-        self.heating_Ki = 0.2
+        self.heating_tc = 30 #%
+        self.heating_Kp = 20
+        self.heating_Ki = 1.0
         self.heating_Kd = 0.0
+        self.heating_ilim = 20
 
-        self.cooling_tc = 85 #%
-        self.cooling_Kp = 14
-        self.cooling_Ki = 0.2
+        self.cooling_tc = 80 #%
+        self.cooling_Kp = 20
+        self.cooling_Ki = 1.0
         self.cooling_Kd = 0.0
+        self.cooling_ilim = 60
 
         self.subzero_tc = 100 #%
-        self.subzero_Kp = 16
-        self.subzero_Ki = 0.4
+        self.subzero_Kp = 20
+        self.subzero_Ki = 1.0
         self.subzero_Kd = 0.0
+        self.subzero_ilim = 100
 
         self.run_flag = False
 
@@ -312,8 +315,8 @@ class PeltierModule:
         # Good to adjust if we do not like fast switching from one voltage direction to the other
         # This helps to save the life of the peltier modules
 
-    def set_pid_parameters(self, p: float, i: float, d: float) -> bool:
-        if (self.register_write(1, p) is True) and (self.register_write(2, i) is True) and (self.register_write(3, d) is True):
+    def set_pid_parameters(self, p: float, i: float, d: float, i_lim: float = 100) -> bool:
+        if (self.register_write(1, p) is True) and (self.register_write(2, i) is True) and (self.register_write(3, d) is True) and (self.register_write(8, i_lim) is True):
             return True
         else:
             return False
@@ -422,21 +425,21 @@ class PeltierModule:
         return self.register_read(154)
     
     def set_heating_mode(self) -> None:
-        if (self.set_max_tc(self.heating_tc) is True) and (self.set_pid_parameters(self.heating_Kp, self.heating_Ki, self.heating_Kd) is True):
+        if (self.set_max_tc(self.heating_tc) is True) and (self.set_pid_parameters(self.heating_Kp, self.heating_Ki, self.heating_Kd, self.heating_ilim) is True):
                 logging.info("Temperature regulator set to heating mode.")
         else:
             logging.error("Failed to set temperature regulator to heating mode.")
             sys.exit()
 
     def set_cooling_mode(self) -> None:
-        if (self.set_max_tc(self.cooling_tc) is True) and (self.set_pid_parameters(self.cooling_Kp, self.cooling_Ki, self.cooling_Kd) is True):
+        if (self.set_max_tc(self.cooling_tc) is True) and (self.set_pid_parameters(self.cooling_Kp, self.cooling_Ki, self.cooling_Kd, self.cooling_ilim) is True):
                 logging.info("Temperature regulator set to cooling mode.")
         else:
             logging.error("Failed to set temperature regulator to cooling mode.")
             sys.exit()
 
     def set_subzero_mode(self) -> None:
-        if (self.set_max_tc(self.subzero_tc) is True) and (self.set_pid_parameters(self.subzero_Kp, self.subzero_Ki, self.subzero_Kd) is True):
+        if (self.set_max_tc(self.subzero_tc) is True) and (self.set_pid_parameters(self.subzero_Kp, self.subzero_Ki, self.subzero_Kd, self.subzero_ilim) is True):
                 logging.info("Temperature regulator set to subzero mode.")
         else:
             logging.error("Failed to set temperature regulator to subzero mode.")

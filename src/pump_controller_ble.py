@@ -259,5 +259,5 @@ if __name__ == "__main__":
     #print("Hum:", ctrl.get_humidity())
     #ctrl.display_oled_message("Hello BLE")
     #ctrl.transfer_pump(1, 70, 5)
-    #ctrl.transfer_pump(2, 70, 5)
-    ctrl.multi_pump([1.0,2.0,3.0,4.0], 0.05)
+    ctrl.single_pump(1, 1.0)
+    #ctrl.multi_pump([1.0,2.0,3.0,4.0], 0.05)

@@ -6,7 +6,6 @@ import yaml
 import pandas as pd
 
 # Local hardware modules
-from src.pump_controller import PumpController
 from src.pump_controller_ble import PumpControllerBLE
 from src.temperature_controller import PeltierModule
 from src.electrochem_system import ECMeasurements
@@ -38,24 +37,6 @@ class scheduler:
 
         self.cfg = self._load_config(config_path)
 
-        # Pumps (two 4‑channel controllers → 8 chemicals total)
-        pumpA_cfg = self.cfg["communication"]["pump_controller_A"]
-        pumpB_cfg = self.cfg["communication"]["pump_controller_B"]
-
-        if pumpA_cfg["ble"]:
-            pump = PumpControllerBLE(device_name=pumpA_cfg["ble_name"], sim=pumpA_cfg["mock"], timeout=pumpA_cfg["timeout"])
-        else:
-            pump = PumpController(COM=pumpA_cfg["port"], baud=pumpA_cfg["baud"], sim=pumpA_cfg["mock"], timeout=pumpA_cfg["timeout"])
-            
-        self.pumpA = pump
-
-        if pumpB_cfg["ble"]:
-            pump = PumpControllerBLE(device_name=pumpB_cfg["ble_name"], sim=pumpB_cfg["mock"], timeout=pumpB_cfg["timeout"])
-        else:
-            pump = PumpController(COM=pumpB_cfg["port"], baud=pumpB_cfg["baud"], sim=pumpB_cfg["mock"], timeout=pumpB_cfg["timeout"])
-
-        self.pumpB = pump
-
         # Temperature controller
         pel_cfg = self.cfg["communication"]["temperature_controller"]
         self.tec = PeltierModule(COM=pel_cfg["port"], baud=pel_cfg["baud"], sim=pel_cfg["mock"])
@@ -72,6 +53,13 @@ class scheduler:
             channel=squid_cfg["channel"],
             squid_sim=squid_cfg["mock"]
             )
+        
+        # Pumps (two 4‑channel controllers → 8 chemicals total)
+        pumpA_cfg = self.cfg["communication"]["pump_controller_A"]
+        pumpB_cfg = self.cfg["communication"]["pump_controller_B"]
+
+        self.pumpA = PumpControllerBLE(device_name=pumpA_cfg["ble_name"], sim=pumpA_cfg["mock"], timeout=pumpA_cfg["timeout"])
+        self.pumpB = PumpControllerBLE(device_name=pumpB_cfg["ble_name"], sim=pumpB_cfg["mock"], timeout=pumpB_cfg["timeout"])
         
         # Populate metadata
         self.cell.user = meas_cfg.get("user", "Unknown")
@@ -289,6 +277,7 @@ class scheduler:
 
         # Heated cleaning with agent
         self.tec.set_temperature(self.tec.max_temp)
+        self.clear_system()
 
         self.show_message("--> Rinsing Cell")
 
@@ -407,7 +396,6 @@ class scheduler:
             recipe_ml = self.recipe.get("recipe_ml", {})
 
         # Sanity checks
-        #self.tec.handshake()
         self.cell.metadata_check()
         
         self.make_mixture(recipe_ml)

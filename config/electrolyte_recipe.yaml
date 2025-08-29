@@ -1,9 +1,9 @@
 recipe_ml:
-  Milli-Q: 0.1
+  Milli-Q: 1.0
   Ethanol: 0.2
-  KCl: 0.3
-  Chem4: 0.4
-  Chem5: 0.5
-  Chem6: 0.6
-  Chem7: 0.7
-  Chem8: 0.8
+  KCl: 0.1
+  Chem4: 0.1
+  Chem5: 0.0
+  Chem6: 0.0
+  Chem7: 0.0
+  Chem8: 0.0
