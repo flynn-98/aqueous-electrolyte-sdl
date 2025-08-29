@@ -59,17 +59,17 @@ class PeltierModule:
         self.heating_Kd = 0.0
         self.heating_ilim = 0.0
 
-        self.cooling_tc = 75 #%
+        self.cooling_tc = 80 #%
         self.cooling_Kp = 15
         self.cooling_Ki = 0.5
         self.cooling_Kd = 0.0
-        self.cooling_ilim = 20.0
+        self.cooling_ilim = 60.0
 
         self.subzero_tc = 100 #%
         self.subzero_Kp = 20
         self.subzero_Ki = 1.0
         self.subzero_Kd = 0.0
-        self.subzero_ilim = 50.0
+        self.subzero_ilim = 100.0
 
         self.run_flag = False
 
