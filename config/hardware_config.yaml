@@ -44,11 +44,11 @@ pumps:
   priming_flowrate: 0.2
   # Calibration for DC pumps
   transfer_pwm: 70 # %
-  waste_pwm: 100
+  waste_pwm: 70
   ml_per_s: 0.4
 
 temperature:
-  setpoints_C: [1] #[0.0, 10.0, 20.0, 40.0]
+  setpoints_C: [-20] #[0.0, 10.0, 20.0, 40.0]
   tolerance_C: 0.25 # plus or minus
   steady_s: 120
   timeout_s: 1800

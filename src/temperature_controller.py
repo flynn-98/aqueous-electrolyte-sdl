@@ -427,21 +427,21 @@ class PeltierModule:
         return self.register_read(154)
     
     def set_heating_mode(self) -> None:
-        if (self.set_max_tc(self.heating_tc) is True) and (self.set_pid_parameters(self.heating_Kp, self.heating_Ki, self.heating_Kd, self.heating_ilim) is True):
+        if self.set_pid_parameters(self.heating_Kp, self.heating_Ki, self.heating_Kd, self.heating_ilim) is True:
                 logging.info("Temperature regulator set to heating mode.")
         else:
             logging.error("Failed to set temperature regulator to heating mode.")
             sys.exit()
 
     def set_cooling_mode(self) -> None:
-        if (self.set_max_tc(self.cooling_tc) is True) and (self.set_pid_parameters(self.cooling_Kp, self.cooling_Ki, self.cooling_Kd, self.cooling_ilim) is True):
+        if self.set_pid_parameters(self.cooling_Kp, self.cooling_Ki, self.cooling_Kd, self.cooling_ilim) is True:
                 logging.info("Temperature regulator set to cooling mode.")
         else:
             logging.error("Failed to set temperature regulator to cooling mode.")
             sys.exit()
 
     def set_subzero_mode(self) -> None:
-        if (self.set_max_tc(self.subzero_tc) is True) and (self.set_pid_parameters(self.subzero_Kp, self.subzero_Ki, self.subzero_Kd, self.subzero_ilim) is True):
+        if self.set_pid_parameters(self.subzero_Kp, self.subzero_Ki, self.subzero_Kd, self.subzero_ilim) is True:
                 logging.info("Temperature regulator set to subzero mode.")
         else:
             logging.error("Failed to set temperature regulator to subzero mode.")
@@ -452,10 +452,13 @@ class PeltierModule:
         
         if temp >= self.temp_threshold:
             self.set_heating_mode()
+            max_tc = self.heating_tc
         elif temp >= self.subzero_threshold:
             self.set_cooling_mode()
+            max_tc = self.cooling_tc
         else:
             self.set_subzero_mode()
+            max_tc = self.subzero_tc
 
         if self.register_write(0, self.clamp(temp, self.min_temp, self.max_temp)) is True:
             logging.info(f"Peltier target temperature set to {temp}C.")
@@ -463,7 +466,19 @@ class PeltierModule:
             logging.error("Failed to set peltier target temperature.")
             sys.exit()
 
+        # Ramp up initial current draw to prevent spikes
+        self.set_max_tc(0)
         self.set_run_flag()
+
+        tc = 0
+        while tc < max_tc:
+            tc += 5
+            time.sleep(1)
+
+            if tc > max_tc:
+                tc = max_tc
+
+            self.set_max_tc(tc)
     
     @skip_if_sim(default_return=True)
     def wait_until_temperature(self, 
