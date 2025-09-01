@@ -181,6 +181,12 @@ class scheduler:
         Args:
             recipe_ml (Dict[str, float]): Mapping of chemical names to volumes (ml) to dose.
         """
+        if self.recipe_path:
+            # Load most recent from yaml
+            self.recipe = self._load_config(self.recipe_path).get("recipe_ml", {})
+        else:
+            raise RuntimeError("Can't make mixutre: no recipe_path given!")
+
         # Validate chemicals exist
         unknown = [k for k in self.recipe.keys() if k not in self.chem_map]
         if unknown:
@@ -396,7 +402,7 @@ class scheduler:
 
         return ids
     
-    def run_protocol(self, filename: str, recipe_ml: Optional[Dict[str, float]] = None) -> None:
+    def run_protocol(self, filename: str) -> None:
         """
         Execute a user-defined protocol from a YAML file (v1 schema).
 
@@ -405,10 +411,6 @@ class scheduler:
         """
 
         start = time.time()
-
-        if self.recipe_path:
-            # Load most recent from yaml
-            self.recipe = self._load_config(self.recipe_path).get("recipe_ml", {})
 
         with open(filename, "r") as f:
             proto = yaml.safe_load(f) or {}
