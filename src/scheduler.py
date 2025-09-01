@@ -18,7 +18,7 @@ logging.basicConfig(
 )
 
 class scheduler:
-    def __init__(self, config_path: str, recipe_path: str = None) -> None:
+    def __init__(self, config_path: str, recipe_path: Optional[str] = None) -> None:
         """
         Initialize the scheduler for hardware control.
         Loads configuration from YAML, sets up pump controllers (A and B), temperature controller,
@@ -28,14 +28,13 @@ class scheduler:
             config_path (str): Path to YAML configuration file.
             recipe_path (str): Path to YAML recipe file. Optional.
         """
-        if recipe_path:
-            self.recipe_path = recipe_path
-            self.recipe = self._load_config(recipe_path)
-        else:
-            self.recipe_path = None
-            self.recipe = None
 
         self.cfg = self._load_config(config_path)
+
+        self.recipe_path = recipe_path
+        if self.recipe_path:
+            # Load most recent from yaml
+            self.recipe = self._load_config(self.recipe_path).get("recipe_ml", {})
 
         # Temperature controller
         pel_cfg = self.cfg["communication"]["temperature_controller"]
@@ -60,15 +59,10 @@ class scheduler:
 
         self.pumpA = PumpControllerBLE(device_name=pumpA_cfg["ble_name"], sim=pumpA_cfg["mock"], timeout=pumpA_cfg["timeout"])
         self.pumpB = PumpControllerBLE(device_name=pumpB_cfg["ble_name"], sim=pumpB_cfg["mock"], timeout=pumpB_cfg["timeout"])
-        
-        # Populate metadata
-        self.cell.user = meas_cfg.get("user", "Unknown")
-        self.cell.project = meas_cfg.get("project", "Unknown")
-        self.cell.electrolyte = meas_cfg.get("electrolyte", "Unknown")
-        self.cell.cell_constant = meas_cfg["cell_constant"]
 
-        self.test_cell_volume = meas_cfg["cell_volume"]
-        self.electrolyte_volume = meas_cfg["electrolyte_volume"]
+        # Must be populated via protocol
+        self.test_cell_volume = None
+        self.electrolyte_volume = None
 
         # Populate temperature related constants
         temp_cfg = self.cfg.get("temperature", {})
@@ -88,6 +82,32 @@ class scheduler:
 
         # Primed state
         self._primed = False
+
+        # Action map for protocol yaml
+        self.ACTIONS = {
+            "Prime": lambda p: self.smart_priming(),
+            "Deprime": lambda p: self.smart_priming(just_deprime=True),
+            "CleanSystem": lambda p: self.system_flush(
+                cleaning_agent=p.get("cleaning_agent", "Ethanol"),
+                flushing_agent=p.get("flushing_agent", "Milli-Q"),
+                cleaning_temperature=p.get("temperature_C"),
+                cleaning_time=p.get("cleaning_time_s", 60),
+            ),
+            "MakeMixture": lambda p: self.make_mixture(),
+            "TransferToCell": lambda p: self.transfer_to_cell(),
+            "EIS": lambda p: self.run_temperature_sweep_with_eis(
+                setpoints_C = p.get("temperatures_C", [25]),
+                freq_start_Hz = p.get("freq_start_Hz", 85000),
+                freq_stop_Hz = p.get("freq_end_Hz", 1),
+                voltage_amplitude = p.get("amplitude_v", 0.01),
+                voltage_bias = p.get("bias_v", 0),
+                points_per_decade = p.get("ppd", 20),
+                measurements = p.get("measurements_per_temp", 1),
+            ),
+            "TransferToWaste": lambda p: self.transfer_to_waste(),
+            "ClearSystem": lambda p: self.clear_system(),
+        }
+    
 
     # -------------------- Public API --------------------
     def show_message(self, msg: str) -> None:
@@ -152,7 +172,7 @@ class scheduler:
         else:
             self.show_message("System Deprimed!")
     
-    def make_mixture(self, recipe_ml: Dict[str, float]) -> None:
+    def make_mixture(self) -> None:
         """
         Dose a mixture of chemicals according to the provided recipe.
         Validates chemicals, updates electrolyte name, primes lines if needed, and doses each chemical
@@ -162,12 +182,12 @@ class scheduler:
             recipe_ml (Dict[str, float]): Mapping of chemical names to volumes (ml) to dose.
         """
         # Validate chemicals exist
-        unknown = [k for k in recipe_ml.keys() if k not in self.chem_map]
+        unknown = [k for k in self.recipe.keys() if k not in self.chem_map]
         if unknown:
             raise ValueError(f"Unknown chemical(s): {unknown}")
         
         # Update electrolyte name using mixture
-        self.cell.electrolyte = self._construct_mixture_title(recipe_ml)
+        self.cell.electrolyte = self._construct_mixture_title(self.recipe)
 
         # Ensure lines are primed before first actual dosing
         if not self._primed:
@@ -182,7 +202,7 @@ class scheduler:
         ml_A = [0.0, 0.0, 0.0, 0.0]
         ml_B = [0.0, 0.0, 0.0, 0.0]
 
-        for chem, vol_ml in recipe_ml.items():
+        for chem, vol_ml in self.recipe.items():
             ctl, idx = self._where(chem)
 
             if vol_ml < 0:
@@ -261,7 +281,7 @@ class scheduler:
         self.transfer_to_cell()
         self.transfer_to_waste()
 
-    def system_flush(self, cleaning_agent: str = "Ethanol", flushing_agent: str = "Milli-Q"):
+    def system_flush(self, cleaning_agent: str = "Ethanol", flushing_agent: str = "Milli-Q", cleaning_time: float = 60, cleaning_temperature: float = None):
         """
         Heated cleaning of test cell, with rinses and prolonged cleaning with cleaning agent. 
         
@@ -270,13 +290,14 @@ class scheduler:
             flushing_agent (str): Name of flushing agent (E.g. Milli-Q Water), to match chemical name in config file.
         """
         flush_volume = self.test_cell_volume
-        cleaning_time = self.cfg["temperature"].get("cleaning_s", 60)
         flow_rate = self.cfg["pumps"].get("priming_flowrate", 0.05)
 
         log.info("Beginning heated cleaning procedure..")
 
         # Heated cleaning with agent
-        self.tec.set_temperature(self.tec.max_temp)
+        if cleaning_temperature:
+            self.tec.set_temperature(cleaning_temperature)
+
         self.clear_system()
 
         self.show_message("--> Rinsing Cell")
@@ -374,51 +395,59 @@ class scheduler:
         self.tec.clear_run_flag()
 
         return ids
+    
+    def run_protocol(self, filename: str, recipe_ml: Optional[Dict[str, float]] = None) -> None:
+        """
+        Execute a user-defined protocol from a YAML file (v1 schema).
 
-    def run_basic_experiment(self, recipe_ml: Optional[Dict[str, float]] = None) -> None:
-        """
-        Run a basic experiment using the scheduler and hardware modules.
-        Loads configuration, performs sanity checks, primes and doses chemicals, regulates temperature,
-        and runs EIS measurements. Transfers solution to cell and waste as needed.
-        
         Args:
-            recipe_ml (Optional[Dict[str, float]]): Optional mapping of chemical names to volumes (ml) to dose.
+                filename (str): Relative path to protocol yaml.
         """
+
         start = time.time()
 
-        # Temperatures and EIS parameters come from YAML
-        temps = self.cfg["temperature"]["setpoints_C"]
-        eis = self.cfg.get("eis", {})
+        if self.recipe_path:
+            # Load most recent from yaml
+            self.recipe = self._load_config(self.recipe_path).get("recipe_ml", {})
 
-        if not recipe_ml:
-            # Reload in case of user changes
-            self.recipe = self._load_config(self.recipe_path)
-            recipe_ml = self.recipe.get("recipe_ml", {})
+        with open(filename, "r") as f:
+            proto = yaml.safe_load(f) or {}
 
-        # Sanity checks
-        self.cell.metadata_check()
-        
-        self.make_mixture(recipe_ml)
+        # --- Metadata overrides (optional) ---
+        meta = proto.get("metadata", {}) or {}
+        if hasattr(self, "cell"):
+            self.cell.user = meta.get("user", getattr(self.cell, "user", "Unknown"))
+            self.cell.project = meta.get("project", getattr(self.cell, "project", "Unknown"))
+            self.cell.electrolyte = meta.get("electrolyte", getattr(self, "electrolyte", "Unknown"))
+            if "cell_constant" in meta:
+                self.cell.cell_constant = meta["cell_constant"]
+        if "cell_volume" in meta:
+            self.test_cell_volume = float(meta["cell_volume"])
+        if "electrolyte_volume" in meta:
+            self.electrolyte_volume = float(meta["electrolyte_volume"])
 
-        self.transfer_to_cell()
+        repeats = int(proto.get("repeats", 1) or 1)
+        steps = proto.get("steps", [])
+        if not isinstance(steps, list):
+            raise ValueError("protocol.steps must be a LIST of step objects. Example: steps: [ {action: Prime}, ... ]")
 
-        self.latest_ids = self.run_temperature_sweep_with_eis(
-            setpoints_C = temps,
-            freq_start_Hz = eis["freq_start_Hz"],
-            freq_stop_Hz = eis["freq_end_Hz"],
-            voltage_amplitude = eis["amplitude_v"],
-            voltage_bias = eis["bias_v"],
-            points_per_decade = eis["ppd"],
-            measurements = eis["measurements_per_temp"],
-        )
-
-        self.transfer_to_waste()
+        # --- Execute ---
+        for rep in range(repeats):
+            self.show_message(f"--> Protocol pass {rep+1}/{repeats}")
+            for i, step in enumerate(steps, start=1):
+                if not isinstance(step, dict):
+                    raise ValueError(f"Step #{i} must be a mapping/object with at least an 'action'. Got: {step!r}")
+                action = step.get("action")
+                if action not in self.ACTIONS:
+                    raise ValueError(f"Unknown action '{action}'. Valid: {list(self.ACTIONS.keys())}")
+                params = {k: v for k, v in step.items() if k != "action"}
+                self.ACTIONS[action](params)
 
         end = time.time() - start
         minutes = round(end / 60, 2)
 
         self.show_message(f"Experiment Time = {minutes}m")
-        log.info(f"[TIMER] Experiment completed in {minutes}mins.")
+        log.info(f"[TIMER] Experiment completed in {minutes}mins.")         
 
     def update_yaml_volumes(self, values: dict) -> None:
         """

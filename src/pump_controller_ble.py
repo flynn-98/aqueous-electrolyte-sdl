@@ -136,11 +136,12 @@ class PumpControllerBLE:
         except asyncio.TimeoutError:
             return None
         return self._inbox.popleft() if self._inbox else None
-
+    
     def get_data(self, timeout: Optional[float] = None) -> Optional[str]:
         """Sync wrapper: return next notification string, or None on timeout."""
         return self._call(self._read_async(timeout))
-
+    
+    @skip_if_sim()
     def check_response(self) -> None:
         """Block until a line containing '#' arrives; log others like the serial driver."""
         while True:

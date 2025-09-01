@@ -55,7 +55,7 @@ class PeltierModule:
 
         self.heating_tc = 50 #%
         self.heating_Kp = 10 # deadband / allowable_error
-        self.heating_Ki = 0.0
+        self.heating_Ki = 0.01
         self.heating_Kd = 0.0
         self.heating_ilim = 0.0
 
@@ -73,8 +73,8 @@ class PeltierModule:
 
         self.run_flag = False
 
-        self.temp_threshold = 15 #C, to set heating or cooling parameters
-        self.subzero_threshold = 0 #C
+        self.temp_threshold = 20 #C, to set heating or cooling parameters
+        self.subzero_threshold = 1 #C
         self.dead_band = 2 #+-% to prevent rapid switching
 
         if self.sim:
