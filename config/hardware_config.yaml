@@ -58,12 +58,12 @@ cv: # To move to protocol
 communication:
   pump_controller_A: # Has 2x DC transfer pumps
     ble_name: PumpControllerA
-    mock: True
+    mock: False
     timeout: 60
 
   pump_controller_B: # Has 4x DC waste pumps
     ble_name: PumpControllerB
-    mock: True
+    mock: False
     timeout: 60
 
   temperature_controller:

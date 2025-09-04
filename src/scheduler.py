@@ -34,7 +34,7 @@ class scheduler:
         self.recipe_path = recipe_path
         if self.recipe_path:
             # Load most recent from yaml
-            self.recipe = self._load_config(self.recipe_path).get("recipe_ml", {})
+            self.recipe = self._load_config(self.recipe_path)
 
         # Temperature controller
         pel_cfg = self.cfg["communication"]["temperature_controller"]
@@ -60,9 +60,9 @@ class scheduler:
         self.pumpA = PumpControllerBLE(device_name=pumpA_cfg["ble_name"], sim=pumpA_cfg["mock"], timeout=pumpA_cfg["timeout"])
         self.pumpB = PumpControllerBLE(device_name=pumpB_cfg["ble_name"], sim=pumpB_cfg["mock"], timeout=pumpB_cfg["timeout"])
 
-        # Must be populated via protocol
-        self.test_cell_volume = None
-        self.electrolyte_volume = None
+        # To be populated via protocol
+        self.test_cell_volume = 2.5
+        self.electrolyte_volume = 1.5
 
         # Populate temperature related constants
         temp_cfg = self.cfg.get("temperature", {})
@@ -183,7 +183,7 @@ class scheduler:
         """
         if self.recipe_path:
             # Load most recent from yaml
-            self.recipe = self._load_config(self.recipe_path).get("recipe_ml", {})
+            self.recipe = self._load_config(self.recipe_path)
         else:
             raise RuntimeError("Can't make mixutre: no recipe_path given!")
 
@@ -284,6 +284,7 @@ class scheduler:
         """
         self.show_message("--> Clearing System")
 
+        self.transfer_to_waste()
         self.transfer_to_cell()
         self.transfer_to_waste()
 
@@ -456,11 +457,7 @@ class scheduler:
         Update 'recipe_ml' in self.recipe with new dose volumes (uL -> mL).
         Writes updated self.recipe back to self.recipe_path.
         """
-        if "recipe_ml" not in self.recipe:
-            log.warning("'recipe_ml' not in config; creating it.")
-            self.recipe["recipe_ml"] = {}
-
-        recipe = self.recipe["recipe_ml"]
+        recipe = self.recipe
 
         # 1) Set *all existing* entries to zero (safety: prevent unintended aspirations)
         for chem in list(recipe.keys()):
@@ -500,7 +497,7 @@ class scheduler:
         - Uses self.recipe['recipe_ml'] volumes in mL
         - Uses self.cfg['chemicals'][name]['cost'] as cost per mL
         """
-        recipe = self.recipe.get("recipe_ml", {})
+        recipe = self.recipe
         chems  = self.cfg.get("chemicals", {})
 
         total = 0

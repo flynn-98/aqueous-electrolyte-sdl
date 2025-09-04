@@ -1,7 +1,6 @@
 # pump_controller_ble.py
 import asyncio
 import logging
-import sys
 from collections import deque
 from typing import Optional, List
 from bleak import BleakScanner, BleakClient
