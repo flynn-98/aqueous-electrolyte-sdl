@@ -5,24 +5,27 @@ measurements:
 # Inside Boxer Pumps = 65 (0,19ml)
 # Inside DC Pumps = 150 (0.44ml)
 # Bottle to Pump = 395 (1,15ml => 0,0029114 ml/mm)
-# Pumps to Needles = 100, 
 # Mixer to Cell = 50+150+85 (0.83ml)
 # Cell to Waste = 200+95+.. (0.86ml)
 # Waste Length = 300 (0.88ml)
 # Waste Spacing = 110 (0.32ml)
 
-# Ethanol = 160 (0.47)
-# KCl = 160 (0.47)
+# Pumps to Needles
+# 1 = 100 (0.29)
+# 2 = 160 (0.47)
+# 3 = 160 (0.47)
+# 4 = 200 (0.58)
+# 5 = 240 (0.7)
 
 # Map each chemical to its controller/pump index and prime volume to fill the tubing.
 # pump_index is 1..4 for each controller, cost is per ml
 
 chemicals:
-  Milli-Q: { controller: A, pump_index: 1, prime_ml: 1.75, cost: 0.01 } 
-  Ethanol: { controller: A, pump_index: 2, prime_ml: 1.85, cost: 0.5 } 
-  KCl: { controller: A, pump_index: 3, prime_ml: 1.85, cost: 4 }
-  Chem4: { controller: A, pump_index: 4, prime_ml: 1.0, cost: 1 }
-  Chem5: { controller: B, pump_index: 1, prime_ml: 1.0, cost: 1 }
+  Milli-Q: { controller: A, pump_index: 1, prime_ml: 1.8, cost: 0.01 } 
+  Standard_1413u: { controller: A, pump_index: 2, prime_ml: 1.9, cost: 0.5 } 
+  KCl: { controller: A, pump_index: 3, prime_ml: 1.9, cost: 4 }
+  Chem4: { controller: A, pump_index: 4, prime_ml: 2.1, cost: 1 }
+  Ethanol: { controller: B, pump_index: 1, prime_ml: 2.2, cost: 1 }
   Chem6: { controller: B, pump_index: 2, prime_ml: 1.0, cost: 1 }
   Chem7: { controller: B, pump_index: 3, prime_ml: 1.0, cost: 1 }
   Chem8: { controller: B, pump_index: 4, prime_ml: 1.0, cost: 1 }
@@ -37,18 +40,18 @@ system:
 pumps:
   # Calibration for stepper pumps (currently hardcoded in firmware)
   ml_per_rev: 0.094
-  mixing_flowrate: 0.2 # ml/s
+  mixing_flowrate: 0.1 # ml/s
   priming_flowrate: 0.2
   # Calibration for DC pumps
-  transfer_pwm: 80 # %
-  waste_pwm: 80
-  ml_per_s: 0.4
+  transfer_pwm: 40 # %
+  waste_pwm: 40
+  ml_per_s: 0.2
 
 temperature:
-  tolerance_C: 1.0 #0.25 # plus or minus
-  steady_s: 60 #120
+  tolerance_C: 0.25 # plus or minus
+  steady_s: 60
   timeout_s: 1800
-  settle_s: 5 #60
+  settle_s: 30
 
 cv: # To move to protocol
   first_limit_V: -1.5
@@ -63,7 +66,7 @@ communication:
     ble_name: PumpControllerA
     mock: False
     timeout: 60
-    ble: False
+    ble: True
     port: /dev/cu.usbserial-CLEBb136G04
     baud: 115200
 
@@ -71,7 +74,7 @@ communication:
     ble_name: PumpControllerB
     mock: False
     timeout: 60
-    ble: False
+    ble: True
     port: /dev/cu.usbserial-CLEBb136G04
     baud: 115200
 
@@ -81,7 +84,7 @@ communication:
     mock: True
 
   squidstat:
-    port: /dev/cu.usbmodem111101
+    port: /dev/cu.usbmodem13101
     channel: 0
     instrument: Plus2695
-    mock: True
+    mock: False
