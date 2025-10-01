@@ -54,7 +54,9 @@ class PumpController:
         start = time.time()
         while(time.time() - start < self.timeout):
             data = self.get_data()
-            # Wait for response and check that command was understood
+            if data is None:
+                logging.warning("Timed out waiting for response")
+                break
             if '#' in data:
                 break
             elif "Unknown command" in data:
@@ -74,8 +76,8 @@ class PumpController:
         self.check_response()
         
     @skip_if_sim()
-    def display_oled_message(self, msg: str) -> None:
-        self.ser.write(f"displayMessage({msg})".encode())
+    def display_oled_message(self, message: str) -> None:
+        self.ser.write(f"displayMessage({message})".encode())
         self.check_response()
 
     @skip_if_sim(default_return = 25)
@@ -89,17 +91,18 @@ class PumpController:
         return float(self.get_data())
         
     @skip_if_sim()
-    def single_pump(self, pump_no: int, ml: float) -> None:
-        self.ser.write(f"singleStepperPump({pump_no},{ml:.3f})".encode())
-        self.check_response()
+    def single_pump(self, pump_no: int, ml: float, flow_rate: float = 0.05, check: bool = True) -> None:
+        self.ser.write(f"singleStepperPump({pump_no},{ml:.3f},{flow_rate:.3f})".encode())
+        if check:
+            self.check_response()
 
     @skip_if_sim()
-    def multi_pump(self, ml: list[float], check: bool = True) -> None:
+    def multi_pump(self, ml: list[float], flow_rate: float = 0.05, check: bool = True) -> None:
         if len(ml) != 4:
             raise ValueError("Exactly 4 volumes are required")
         
         args = ",".join(f"{float(v):.3f}" for v in ml)
-        self.ser.write(f"multiStepperPump({args})".encode())
+        self.ser.write(f"multiStepperPump({args},{flow_rate:.3f})".encode())
 
         if check:
             self.check_response()

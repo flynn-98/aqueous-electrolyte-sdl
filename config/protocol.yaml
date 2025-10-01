@@ -4,7 +4,7 @@ metadata:
   electrolyte: KCl
   cell_constant: 3           # /cm
   electrolyte_volume: 1.5    # ml (should match total mixture volume in recipe)
-  cell_volume: 2.0           # ml
+  cell_volume: 1.5           # ml
 
 repeats: 1                   # repeats the WHOLE steps section
 

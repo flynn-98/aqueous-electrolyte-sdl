@@ -7,6 +7,7 @@ import pandas as pd
 
 # Local hardware modules
 from src.pump_controller_ble import PumpControllerBLE
+from src.pump_controller import PumpController
 from src.temperature_controller import PeltierModule
 from src.electrochem_system import ECMeasurements
 
@@ -57,8 +58,19 @@ class scheduler:
         pumpA_cfg = self.cfg["communication"]["pump_controller_A"]
         pumpB_cfg = self.cfg["communication"]["pump_controller_B"]
 
-        self.pumpA = PumpControllerBLE(device_name=pumpA_cfg["ble_name"], sim=pumpA_cfg["mock"], timeout=pumpA_cfg["timeout"])
-        self.pumpB = PumpControllerBLE(device_name=pumpB_cfg["ble_name"], sim=pumpB_cfg["mock"], timeout=pumpB_cfg["timeout"])
+        # BLE or Serial?
+        if pumpA_cfg["ble"]:
+            pumpA = PumpControllerBLE(device_name=pumpA_cfg["ble_name"], sim=pumpA_cfg["mock"], timeout=pumpA_cfg["timeout"])
+        else:
+            pumpA = PumpController(COM=pumpA_cfg["port"], baud=pumpA_cfg["baud"], sim=pumpA_cfg["mock"])
+
+        if pumpB_cfg["ble"]:
+            pumpB = PumpControllerBLE(device_name=pumpB_cfg["ble_name"], sim=pumpB_cfg["mock"], timeout=pumpB_cfg["timeout"])
+        else:
+            pumpB = PumpController(COM=pumpB_cfg["port"], baud=pumpB_cfg["baud"], sim=pumpB_cfg["mock"])
+
+        self.pumpA = pumpA
+        self.pumpB = pumpB
 
         # To be populated via protocol
         self.test_cell_volume = 2.5
