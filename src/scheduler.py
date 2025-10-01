@@ -593,6 +593,12 @@ class scheduler:
         """
         with open(path, "r", encoding="utf-8") as f:
             return yaml.safe_load(f)
+        
+    def _chem_exists(self, chemical: str) -> bool:
+        if self.chem_map.get(chemical) is not None:
+            return True
+        else:
+            return False
 
     def _where(self, chemical: str) -> Tuple[str, int]:
         """
@@ -677,6 +683,9 @@ class scheduler:
             chemical (str): Chemical name.
             volume_ml (float): Volume to dose in ml.
         """
+        if not self._chem_exists(chemical):
+            return
+        
         ctl, idx = self._where(chemical)
 
         pump = self.pumpA if ctl == "A" else self.pumpB
