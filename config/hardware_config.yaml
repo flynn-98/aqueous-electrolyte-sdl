@@ -53,14 +53,6 @@ temperature:
   timeout_s: 1800
   settle_s: 30
 
-cv: # To move to protocol
-  first_limit_V: -1.5
-  second_limit_V: 1.5
-  scan_rate: 0.1
-  sampling_interval_s: 0.1
-  cycles: 3
-  measurements_per_temp: 3 # minimum to give error bars
-
 communication:
   pump_controller_A: # Has 2x DC transfer pumps
     ble_name: PumpControllerA

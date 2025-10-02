@@ -115,6 +115,17 @@ class scheduler:
                 voltage_bias = p.get("bias_v", 0),
                 points_per_decade = p.get("ppd", 20),
                 measurements = p.get("measurements_per_temp", 1),
+                keep_on = p.get("keep_on", False),
+            ),
+            "CV": lambda p: self.run_temperature_sweep_with_cv(
+                setpoints_C = p.get("temperatures_C", [25]),
+                first_limit_V = p.get("first_limit_V", 1.5),
+                second_limit_V = p.get("second_limit_V", -1.5),
+                scan_rate = p.get("scan_rate", 0.1),
+                sampling_interval_s = p.get("sampling_interval_s", 0.01),
+                cycles = p.get("cycles", 1),
+                measurements = p.get("measurements_per_temp", 1),
+                keep_on = p.get("keep_on", False),
             ),
             "TransferToWaste": lambda p: self.transfer_to_waste(),
             "ClearSystem": lambda p: self.clear_system(),
@@ -365,7 +376,8 @@ class scheduler:
         voltage_bias: float,
         points_per_decade: int,
         measurements: int,
-    ) -> List[str]:
+        keep_on: bool = False,
+    ) -> None:
         """
         Run a temperature sweep with EIS (Electrochemical Impedance Spectroscopy) measurements.
         For each temperature setpoint, waits for temperature controller to reach setpoint, then runs EIS
@@ -381,7 +393,7 @@ class scheduler:
             measurements (int): Number of measurements per temperature.
         """
 
-        ids = []
+        self.latest_ids = []
         
         for T in setpoints_C:
             log.info(f"Waiting until temperature = {T:.1f} C")
@@ -405,15 +417,73 @@ class scheduler:
                     measurements = measurements
                 )
                 
-                ids.append(id)
+                self.latest_ids.append(id)
 
             except Exception as e:
-                log.error(f"Electrochemical measurement failed: {e}")
+                log.error(f"EIS measurement failed: {e}")
 
         # Clear run flag on temperature controller
-        self.tec.clear_run_flag()
+        if not keep_on:
+            self.tec.clear_run_flag()
 
-        return ids
+    def run_temperature_sweep_with_cv(
+        self,
+        setpoints_C: List[float],
+        first_limit_V: float,
+        second_limit_V: float,
+        scan_rate: float,
+        sampling_interval_s: float,
+        cycles: int,
+        measurements: int,
+        keep_on: bool = False,
+    ) -> None:
+        """
+        Run a temperature sweep with CV (Cyclic voltammetry) measurements.
+        For each temperature setpoint, waits for temperature controller to reach setpoint, then runs CV
+        experiment. OCP defines start and end voltages. Handles hardware errors and clears run flag.
+        
+        Args:
+            setpoints_C (List[float]): List of temperature setpoints in Celsius.
+            first_limit_V (float): First voltage limit for CV.
+            second_limit_V (float): Second voltage limit for CV.
+            scan_rate (float): Speed of voltage change (V/s).
+            sampling_interval_s (float): Interval between voltage measurements (s)
+            cycles (int): Number of cycles.
+            measurements (int): Number of measurements per temperature.
+        """
+
+        self.latest_ids = []
+        
+        for T in setpoints_C:
+            log.info(f"Waiting until temperature = {T:.1f} C")
+            self.show_message(f"Target: {self.tec.get_t1_value():.1f} -> {T:.1f}C")
+
+            if not self.tec.wait_until_temperature(T, show_temperature_fn=self.show_message):
+                raise RuntimeError("Temperature regulation failed!")
+            
+            self.show_message(f"Collecting CV Data @ {self.tec.get_t1_value():.1f}C")
+        
+            # Build and run the electrochemical experiment
+            try:
+                id = self.cell.perform_CV_experiment(
+                    first_voltage_limit = first_limit_V,
+                    second_voltage_limit = second_limit_V,
+                    scan_rate = scan_rate,
+                    sampling_interval = sampling_interval_s,
+                    cycles = cycles,
+                    target_temperature = T,
+                    get_temperature_fn = self.tec.get_t1_value,
+                    measurements = measurements
+                )
+                
+                self.latest_ids.append(id)
+
+            except Exception as e:
+                log.error(f"CV measurement failed: {e}")
+
+        # Clear run flag on temperature controller
+        if not keep_on:
+            self.tec.clear_run_flag()
     
     def run_protocol(self, filename: str) -> None:
         """

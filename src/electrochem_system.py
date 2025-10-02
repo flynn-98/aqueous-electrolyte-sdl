@@ -381,6 +381,7 @@ class ECMeasurements:
             # Measure time taken to get data between OCPs
             start_time = time.time()
 
+            # Set starting end end voltage based on OCP results
             start_voltage = start_ocp
             end_voltage = start_voltage
     

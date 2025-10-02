@@ -30,7 +30,18 @@ steps:
     amplitude_v: 0.01
     bias_v: 0
     ppd: 20
-    measurements_per_temp: 3
+    measurements_per_temp: 1
+    keep_on: True # keep temperature controller ON after measurements
+
+  - action: CV
+    temperatures_C: [30]
+    first_limit_V: -1.5
+    second_limit_V: 1.5
+    scan_rate: 0.1
+    sampling_interval_s: 0.01
+    cycles: 3
+    measurements_per_temp: 1
+    keep_on: True
 
   - action: TransferToWaste
 
