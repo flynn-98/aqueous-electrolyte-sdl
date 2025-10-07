@@ -1,5 +1,5 @@
 {
-    "optimization_name": "Liquid Electrolyte Optimisation",
+    "optimization_name": "Liquid Electrolyte Optimisation (Pumpbot 2 - Na2SO4 - 30degs)",
     "description": "Optimisation of liquid electrolyte composition to maximise properties such as ionic conductivity",
     "sdlabs_account_type": "enterprise",
     "sdlabs_group_id": "CAPeX_Pioneer_Center",
@@ -12,14 +12,7 @@
             "type": "discrete"
         },
         {
-            "name": "Ethanol",
-            "low_value": 0,
-            "high_value": 1500,
-            "stride": 10,
-            "type": "discrete"
-        },
-        {
-            "name": "KCl",
+            "name": "Na2SO4_2M",
             "low_value": 0,
             "high_value": 1500,
             "stride": 10,
@@ -32,14 +25,21 @@
             "name": "Conductivity",
             "goal": "max",
             "multi_objective_configuration": {
-                "weight": 0.7
+                "weight": 0.5
+            }
+        },
+        {
+            "name": "Stability",
+            "goal": "max",
+            "multi_objective_configuration": {
+                "weight": 0.3
             }
         },
         {
             "name": "Cost",
             "goal": "min",
             "multi_objective_configuration": {
-                "weight": 0.3
+                "weight": 0.2
             }
         }
     ],
@@ -52,11 +52,7 @@
                     "weight": 1
                 },
                 {
-                    "parameter": "Ethanol",
-                    "weight": 1
-                },
-                {
-                    "parameter": "KCl",
+                    "parameter": "Na2SO4_2M",
                     "weight": 1
                 }
             ],

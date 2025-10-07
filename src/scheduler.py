@@ -343,7 +343,7 @@ class scheduler:
         self.transfer_to_cell()
         self.transfer_to_waste()
 
-    def system_flush(self, cleaning_agent: str = "Ethanol", flushing_agent: str = "Milli-Q", cleaning_time: float = 60, cleaning_temperature: float = None):
+    def system_flush(self, cleaning_agent: str = "Ethanol", flushing_agent: str = "Milli-Q", cleaning_time: float = 30, cleaning_temperature: float = None):
         """
         Heated cleaning of test cell, with rinses and prolonged cleaning with cleaning agent. 
         

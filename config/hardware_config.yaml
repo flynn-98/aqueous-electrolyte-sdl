@@ -22,8 +22,8 @@ measurements:
 
 chemicals:
   Milli-Q: { controller: A, pump_index: 1, prime_ml: 1.8, cost: 1 } 
-  Standard_1413u: { controller: A, pump_index: 2, prime_ml: 1.9, cost: 0.5 } 
-  HCl: { controller: A, pump_index: 3, prime_ml: 1.9, cost: 2 }
+  Standard_1413u: { controller: A, pump_index: 2, prime_ml: 1.9, cost: 1 } 
+  HCl: { controller: A, pump_index: 3, prime_ml: 1.9, cost: 1 }
   Na2SO4_2M: { controller: A, pump_index: 4, prime_ml: 2.1, cost: 5 }
   Ethanol: { controller: B, pump_index: 1, prime_ml: 2.2, cost: 1 }
   Chem6: { controller: B, pump_index: 2, prime_ml: 1.0, cost: 1 }
@@ -41,7 +41,7 @@ pumps:
   # Calibration for stepper pumps (currently hardcoded in firmware)
   ml_per_rev: 0.094
   mixing_flowrate: 0.1 # ml/s
-  priming_flowrate: 0.2
+  priming_flowrate: 0.15
   # Calibration for DC pumps
   transfer_pwm: 40 # %
   waste_pwm: 40

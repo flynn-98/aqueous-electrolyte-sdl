@@ -4,7 +4,7 @@ metadata:
   electrolyte: KCl
   cell_constant: 3.8         # /cm
   electrolyte_volume: 1.5    # ml (should match total mixture volume in recipe)
-  cell_volume: 1.5           # ml
+  cell_volume: 1.6           # ml
 
 repeats: 1                   # repeats the WHOLE steps section
 
@@ -34,7 +34,7 @@ steps:
     amplitude_v: 0.01
     bias_v: 0
     ppd: 20
-    measurements_per_temp: 1
+    measurements_per_temp: 3
     keep_on: True # keep temperature controller ON after measurements
 
   - action: CV
@@ -44,7 +44,7 @@ steps:
     scan_rate: 0.1
     sampling_interval_s: 0.01
     cycles: 3
-    measurements_per_temp: 1
+    measurements_per_temp: 3
     keep_on: True
 
   - action: TransferToWaste
