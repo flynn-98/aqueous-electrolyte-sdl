@@ -1,3 +1,4 @@
+import os
 import logging
 import time
 from typing import Dict, List, Tuple, Optional
@@ -75,6 +76,8 @@ class scheduler:
         # To be populated via protocol
         self.test_cell_volume = 2.5
         self.electrolyte_volume = 1.5
+        self.mixing_time = 0
+        self.mixing_cycles = 0
 
         # Populate temperature related constants
         temp_cfg = self.cfg.get("temperature", {})
@@ -90,7 +93,8 @@ class scheduler:
         self.chem_map = self.cfg["chemicals"]
 
         # To be populated after experiments
-        self.latest_ids = None
+        self.latest_eis_ids = None
+        self.latest_cv_ids = None
 
         # Primed state
         self._primed = False
@@ -106,7 +110,11 @@ class scheduler:
                 cleaning_time=p.get("cleaning_time_s", 60),
             ),
             "MakeMixture": lambda p: self.make_mixture(),
-            "TransferToCell": lambda p: self.transfer_to_cell(),
+            "Mix": lambda p: self.mix_electrolyte(),
+            "TransferToCell": lambda p: self.transfer_to_cell(
+                mixing_time = p.get("mixing_time", 10),
+                mixing_cycles = p.get("mixing_cycles", 10),
+            ),
             "EIS": lambda p: self.run_temperature_sweep_with_eis(
                 setpoints_C = p.get("temperatures_C", [25]),
                 freq_start_Hz = p.get("freq_start_Hz", 85000),
@@ -261,6 +269,30 @@ class scheduler:
         self.pumpB.multi_pump(ml_B, flow_rate=flow_rate, check=False)
         self._wait_for_responses()
 
+    def mix_electrolyte(self, mixing_time: int = 10, mixing_cycles: int = 10):
+        """
+        Perform a number of mixing cycles by pumping forwards and back through tubing. Wait for period of time for mixture to settle.
+        """
+
+        log.info(f"Mixing content of chamber {mixing_cycles} times..")
+        vol = self.cfg["system"].get("mix_to_cell_ml", 0)
+        pwm = self.cfg["pumps"].get("mixing_pwm", 100)
+
+        self.show_message(f"--> Mixing Electroyte X{mixing_cycles}")
+
+        for _ in range(mixing_cycles):
+            # Forward
+            self._transfer_pump(ctl="A", pump_index=1, volume_ml=vol * 0.7, pwm=pwm, check=True)
+            # Back
+            self._transfer_pump(ctl="A", pump_index=1, volume_ml=vol, pwm=-pwm, check=True)
+
+        # Final back flow to be sure
+        self._transfer_pump(ctl="A", pump_index=1, volume_ml=vol, pwm=-pwm, check=True)
+
+        log.info(f"Waiting for {mixing_time}s for mixture to settle..")
+        self.show_message(f"--> Waiting for {mixing_time}s")
+        time.sleep(mixing_time)
+
     def transfer_to_cell(self, check: bool = True, cell_no: int = 1):
         """
         Transfer the mixed solution from the mixing chamber to the test cell.
@@ -393,7 +425,7 @@ class scheduler:
             measurements (int): Number of measurements per temperature.
         """
 
-        self.latest_ids = []
+        self.latest_eis_ids = []
         
         for T in setpoints_C:
             log.info(f"Waiting until temperature = {T:.1f} C")
@@ -417,7 +449,7 @@ class scheduler:
                     measurements = measurements
                 )
                 
-                self.latest_ids.append(id)
+                self.latest_eis_ids.append(id)
 
             except Exception as e:
                 log.error(f"EIS measurement failed: {e}")
@@ -452,7 +484,7 @@ class scheduler:
             measurements (int): Number of measurements per temperature.
         """
 
-        self.latest_ids = []
+        self.latest_cv_ids = []
         
         for T in setpoints_C:
             log.info(f"Waiting until temperature = {T:.1f} C")
@@ -476,7 +508,7 @@ class scheduler:
                     measurements = measurements
                 )
                 
-                self.latest_ids.append(id)
+                self.latest_cv_ids.append(id)
 
             except Exception as e:
                 log.error(f"CV measurement failed: {e}")
@@ -603,7 +635,8 @@ class scheduler:
         self,
         agg_column: str,
         ids: Optional[List[str]] = None,
-        agg_fn: Optional[str] = "mean"
+        agg_fn: Optional[str] = "mean",
+        mode: Optional[str] = "EIS"
     ) -> float:
         """
         Load results CSV and aggregate values for the given IDs.
@@ -617,11 +650,14 @@ class scheduler:
             Aggregated value (float) or None if no matching rows.
         """
 
-        if not ids:
-            ids = self.latest_ids
+        if mode == "CV" and not ids:
+            ids = self.latest_cv_ids
+        elif mode == "EIS" and not ids:
+            ids = self.latest_eis_ids
 
         try:
-            df = pd.read_csv(self.cell.master_csv)
+            master_csv = os.path.join(self.cell.squid.results_path, f"{mode}_Results.csv")
+            df = pd.read_csv(master_csv)
         except FileNotFoundError:
             logging.error(f"Results CSV not found: {self.cell.master_csv}")
             return None

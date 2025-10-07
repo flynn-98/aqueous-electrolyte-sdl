@@ -2,14 +2,14 @@ metadata:
   user: Wessel
   project: MOFESS
   electrolyte: KCl
-  cell_constant: 3.92           # /cm
+  cell_constant: 3.8         # /cm
   electrolyte_volume: 1.5    # ml (should match total mixture volume in recipe)
   cell_volume: 1.5           # ml
 
 repeats: 1                   # repeats the WHOLE steps section
 
 steps:
-  #- action: ClearSystem
+  - action: ClearSystem
 
   #- action: Prime
 
@@ -20,6 +20,10 @@ steps:
   #  cleaning_time_s: 60
 
   - action: MakeMixture
+
+  - action: Mix
+    mixing_time: 10
+    mixing_cycles: 10
 
   - action: TransferToCell
 
