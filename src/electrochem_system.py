@@ -424,6 +424,7 @@ class ECMeasurements:
             logging.info(f"[{id}] Electrochemical Stability Window: {result}V")
 
             # Write to CSV
+            print(self.master_csv)
             with open(self.master_csv, 'a', newline='') as file:
                 writer = DictWriter(file, fieldnames=self.cv_fieldnames)
                 writer.writerow({

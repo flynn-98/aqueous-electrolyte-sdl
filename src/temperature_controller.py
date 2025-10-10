@@ -55,19 +55,19 @@ class PeltierModule:
 
         self.heating_tc = 50 #%
         self.heating_Kp = 10 # deadband / allowable_error
-        self.heating_Ki = 0.01
+        self.heating_Ki = 0.005
         self.heating_Kd = 0.0
         self.heating_ilim = 0.0
 
         self.cooling_tc = 80 #%
         self.cooling_Kp = 15
-        self.cooling_Ki = 0.5
+        self.cooling_Ki = 0.01
         self.cooling_Kd = 0.0
         self.cooling_ilim = 60.0
 
         self.subzero_tc = 100 #%
         self.subzero_Kp = 20
-        self.subzero_Ki = 1.0
+        self.subzero_Ki = 0.05
         self.subzero_Kd = 0.0
         self.subzero_ilim = 100.0
 
@@ -75,7 +75,7 @@ class PeltierModule:
 
         self.temp_threshold = 20 #C, to set heating or cooling parameters
         self.subzero_threshold = 1 #C
-        self.dead_band = 2 #+-% to prevent rapid switching
+        self.dead_band = 0.5 #+-% to prevent rapid switching
 
         if self.sim:
             logging.info("Simulated connection to temperature controller established.")

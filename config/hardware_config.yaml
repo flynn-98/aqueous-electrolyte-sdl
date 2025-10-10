@@ -50,14 +50,14 @@ pumps:
 
 temperature:
   tolerance_C: 0.25 # plus or minus
-  steady_s: 60
+  steady_s: 120
   timeout_s: 1800
-  settle_s: 30
+  settle_s: 60
 
 communication:
   pump_controller_A: # Has 2x DC transfer pumps
     ble_name: PumpControllerA
-    mock: True
+    mock: False
     timeout: 60
     ble: True
     port: /dev/cu.usbserial-CLEBb136G04
@@ -65,19 +65,19 @@ communication:
 
   pump_controller_B: # Has 4x DC waste pumps
     ble_name: PumpControllerB
-    mock: True
+    mock: False
     timeout: 60
     ble: True
     port: /dev/cu.usbserial-CLEBb136G04
     baud: 115200
 
   temperature_controller:
-    port: /dev/cu.usbserial-CLEBb136G04
+    port: /dev/ttyUSB0
     baud: 115200
-    mock: True
+    mock: False
 
   squidstat:
-    port: /dev/cu.usbmodem13101
+    port: ttyACM0
     channel: 0
     instrument: Plus2695
-    mock: True
+    mock: False

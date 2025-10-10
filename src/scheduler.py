@@ -74,7 +74,7 @@ class scheduler:
         self.pumpB = pumpB
 
         # To be populated via protocol
-        self.test_cell_volume = 2.5
+        self.test_cell_volume = 1.6
         self.electrolyte_volume = 1.5
         self.mixing_time = 0
         self.mixing_cycles = 0
@@ -110,11 +110,11 @@ class scheduler:
                 cleaning_time=p.get("cleaning_time_s", 60),
             ),
             "MakeMixture": lambda p: self.make_mixture(),
-            "Mix": lambda p: self.mix_electrolyte(),
-            "TransferToCell": lambda p: self.transfer_to_cell(
+            "Mix": lambda p: self.mix_electrolyte(
                 mixing_time = p.get("mixing_time", 10),
                 mixing_cycles = p.get("mixing_cycles", 10),
             ),
+            "TransferToCell": lambda p: self.transfer_to_cell(),
             "EIS": lambda p: self.run_temperature_sweep_with_eis(
                 setpoints_C = p.get("temperatures_C", [25]),
                 freq_start_Hz = p.get("freq_start_Hz", 85000),
@@ -275,19 +275,14 @@ class scheduler:
         """
 
         log.info(f"Mixing content of chamber {mixing_cycles} times..")
-        vol = self.cfg["system"].get("mix_to_cell_ml", 0)
         pwm = self.cfg["pumps"].get("mixing_pwm", 100)
 
         self.show_message(f"--> Mixing Electroyte X{mixing_cycles}")
 
         for _ in range(mixing_cycles):
-            # Forward
-            self._transfer_pump(ctl="A", pump_index=1, volume_ml=vol * 0.7, pwm=pwm, check=True)
-            # Back
-            self._transfer_pump(ctl="A", pump_index=1, volume_ml=vol, pwm=-pwm, check=True)
-
-        # Final back flow to be sure
-        self._transfer_pump(ctl="A", pump_index=1, volume_ml=vol, pwm=-pwm, check=True)
+            # Inject air
+            self._transfer_pump(ctl="A", pump_index=1, volume_ml=1, pwm=-pwm, check=True)
+            time.sleep(2)
 
         log.info(f"Waiting for {mixing_time}s for mixture to settle..")
         self.show_message(f"--> Waiting for {mixing_time}s")
@@ -343,7 +338,7 @@ class scheduler:
         self.transfer_to_cell()
         self.transfer_to_waste()
 
-    def system_flush(self, cleaning_agent: str = "Ethanol", flushing_agent: str = "Milli-Q", cleaning_time: float = 30, cleaning_temperature: float = None):
+    def system_flush(self, cleaning_agent: str = "HCl", flushing_agent: str = "Milli-Q", cleaning_time: float = 30, cleaning_temperature: float = None):
         """
         Heated cleaning of test cell, with rinses and prolonged cleaning with cleaning agent. 
         

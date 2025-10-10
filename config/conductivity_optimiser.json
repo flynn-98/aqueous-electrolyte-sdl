@@ -25,14 +25,14 @@
             "name": "Conductivity",
             "goal": "max",
             "multi_objective_configuration": {
-                "weight": 0.5
+                "weight": 0.6
             }
         },
         {
             "name": "Stability",
             "goal": "max",
             "multi_objective_configuration": {
-                "weight": 0.3
+                "weight": 0.2
             }
         },
         {
