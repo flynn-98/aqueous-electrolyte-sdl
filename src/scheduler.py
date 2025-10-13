@@ -74,8 +74,8 @@ class scheduler:
         self.pumpB = pumpB
 
         # To be populated via protocol
-        self.test_cell_volume = 1.6
-        self.electrolyte_volume = 1.5
+        self.test_cell_volume = 1.8
+        self.electrolyte_volume = 1.6
         self.mixing_time = 0
         self.mixing_cycles = 0
 

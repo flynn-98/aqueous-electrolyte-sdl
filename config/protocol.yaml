@@ -3,8 +3,8 @@ metadata:
   project: MOFESS
   electrolyte: KCl
   cell_constant: 3.8         # /cm
-  electrolyte_volume: 1.5    # ml (should match total mixture volume in recipe)
-  cell_volume: 1.6           # ml
+  electrolyte_volume: 1.6    # ml (should match total mixture volume in recipe)
+  cell_volume: 1.8           # ml
 
 repeats: 1                   # repeats the WHOLE steps section
 
