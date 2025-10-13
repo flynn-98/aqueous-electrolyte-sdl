@@ -52,6 +52,7 @@ class PeltierModule:
 
         # Heating/Cooling control
         # Heating should be proportional-driven, cooling should be more integral-driven
+        # Not used in ON/OFF mode (mode=2)
 
         self.heating_tc = 50 #%
         self.heating_Kp = 10 # deadband / allowable_error
@@ -75,7 +76,13 @@ class PeltierModule:
 
         self.temp_threshold = 20 #C, to set heating or cooling parameters
         self.subzero_threshold = 1 #C
-        self.dead_band = 0.5 #+-% to prevent rapid switching
+        self.tc_dead_band = 1 #+-% to prevent rapid switching
+
+        # ON/OFF mode
+        self.dead_band = 0.25 #C - match acceptance tolerance?
+        self.hysterisis = 1 #C - depends on intertia of system
+
+        self.mode = 2
 
         if self.sim:
             logging.info("Simulated connection to temperature controller established.")
@@ -96,52 +103,49 @@ class PeltierModule:
         self.handshake()
 
         if self.set_regulator_mode() is True:
-            logging.info("Temperature regulator PID mode successfully configured.")
+            logging.info("Temperature regulator mode set.")
         else:
-            logging.error("Temperature regulator configuration failed.")
-            sys.exit()
+            raise RuntimeError("Temperature regulator configuration failed.")
 
-        if (self.set_tc_dead_band() is True):
-            logging.info("Temperature regulator dead band settings successfully configured.")
+        if self.set_bang_parameters() is True:
+            logging.info("Temperature regulator ON/OFF parameters set.")
         else:
-            logging.error("Temperature regulator dead band configuration failed.")
-            sys.exit()
+            raise RuntimeError("Temperature regulator ON/OFF configuration failed.")
+
+        if (self.set_tc_tc_dead_band() is True):
+            logging.info("Temperature regulator dead band parameters set.")
+        else:
+            raise RuntimeError("Temperature regulator dead band configuration failed.")
 
         if self.set_voltage_alarm_settings() is True:
-            logging.info("Temperature regulator voltage alarm settings successfully configured.")
+            logging.info("Temperature regulator voltage alarm parameters set.")
         else:
-            logging.error("Temperature regulator voltage alarm configuration failed.")
-            sys.exit()
+            raise RuntimeError("Temperature regulator voltage alarm configuration failed.")
 
         if self.set_current_alarm_settings() is True:
-            logging.info("Temperature regulator current alarm settings successfully configured.")
+            logging.info("Temperature regulator current alarm parameters set.")
         else:
-            logging.error("Temperature regulator current alarm configuration failed.")
-            sys.exit()
+            raise RuntimeError("Temperature regulator current alarm configuration failed.")
 
         if self.configure_main_sensor() is True:
-            logging.info("Temperature Sensor #1 successfully configured.")
+            logging.info("Temperature Sensor #1 configured.")
         else:
-            logging.error("Temperature Sensor #1 configuration failed.")
-            sys.exit()
+            raise RuntimeError("Temperature Sensor #1 configuration failed.")
 
         if self.configure_heat_sink_sensor() is True:
-            logging.info("Temperature sensor #2 successfully configured.")
+            logging.info("Temperature sensor #2 configured.")
         else:
-            logging.error("Temperature sensor #2 configuration failed.")
-            sys.exit()
+            raise RuntimeError("Temperature sensor #2 configuration failed.")
 
         if self.set_main_steinhart_coeffs() is True:
-            logging.info("Successfully updated steinhart coefficients for temperature sensor #1.")
+            logging.info("Updated steinhart coefficients for temperature sensor #1.")
         else:
-            logging.error("Failed to update steinhart coefficients for temperature sensor #1.")
-            sys.exit() 
+            raise RuntimeError("Failed to update steinhart coefficients for temperature sensor #1.")
 
         if self.set_heat_sink_steinhart_coeffs() is True:
-            logging.info("Successfully updated steinhart coefficients for temperature sensor #2.")
+            logging.info("Updated steinhart coefficients for temperature sensor #2.")
         else:
-            logging.error("Failed to update steinhart coefficients for temperature sensor #2.")
-            sys.exit()         
+            raise RuntimeError("Failed to update steinhart coefficients for temperature sensor #2.")
 
         self.set_fan_modes()
         self.assess_status()      
@@ -288,7 +292,7 @@ class PeltierModule:
 
         return float(self.get_data())
         
-    def set_regulator_mode(self, mode: int = 6) -> bool:
+    def set_regulator_mode(self) -> bool:
         # 1 = Power 
         # 2 = ON/OFF
         # 3 = P 
@@ -296,7 +300,7 @@ class PeltierModule:
         # 5 = PD 
         # 6 = PID 
         
-        return self.register_write(13, mode)
+        return self.register_write(13, self.mode)
 
     def clamp(self, n: int | float , minn: int | float, maxn: int | float) -> int | float:
         if n < minn:
@@ -310,12 +314,18 @@ class PeltierModule:
         # 100 is default register value
         return self.register_write(6, self.clamp(max, 0, 100))
         
-    def set_tc_dead_band(self) -> bool:
-        return self.register_write(7, self.clamp(self.dead_band, 0, 100))
+    def set_tc_tc_dead_band(self) -> bool:
+        return self.register_write(7, self.clamp(self.tc_dead_band, 0, 100))
 
         # Dead band is limiting the signal around zero value. 
         # Good to adjust if we do not like fast switching from one voltage direction to the other
         # This helps to save the life of the peltier modules
+
+    def set_bang_parameters(self) -> bool:
+        if (self.register_write(14, self.dead_band) is True) and (self.register_write(15, self.hysterisis) is True):
+            return True
+        else:
+            return False
 
     def set_pid_parameters(self, p: float, i: float, d: float, i_lim: float = 100) -> bool:
         if (self.register_write(1, p) is True) and (self.register_write(2, i) is True) and (self.register_write(3, d) is True) and (self.register_write(8, i_lim) is True):
@@ -340,8 +350,7 @@ class PeltierModule:
         if (self.register_write(16, mode) is True) and (self.register_write(23, mode) is True) and (self.register_write(22, self.fan_voltage) is True) and (self.register_write(29, self.fan_voltage) is True):
             logging.info("Temperature regulator fan settings successfully configured.")
         else:
-            logging.error("Temperature regulator fan configuration failed.")
-            sys.exit()
+            raise RuntimeError("Temperature regulator fan configuration failed.")
         
     def turn_fans_off(self) -> None:
         # To be used when taking mass readings
@@ -430,22 +439,19 @@ class PeltierModule:
         if self.set_pid_parameters(self.heating_Kp, self.heating_Ki, self.heating_Kd, self.heating_ilim) is True:
                 logging.info("Temperature regulator set to heating mode.")
         else:
-            logging.error("Failed to set temperature regulator to heating mode.")
-            sys.exit()
+            raise RuntimeError("Failed to set temperature regulator to heating mode.")
 
     def set_cooling_mode(self) -> None:
         if self.set_pid_parameters(self.cooling_Kp, self.cooling_Ki, self.cooling_Kd, self.cooling_ilim) is True:
                 logging.info("Temperature regulator set to cooling mode.")
         else:
-            logging.error("Failed to set temperature regulator to cooling mode.")
-            sys.exit()
+            raise RuntimeError("Failed to set temperature regulator to cooling mode.")
 
     def set_subzero_mode(self) -> None:
         if self.set_pid_parameters(self.subzero_Kp, self.subzero_Ki, self.subzero_Kd, self.subzero_ilim) is True:
                 logging.info("Temperature regulator set to subzero mode.")
         else:
-            logging.error("Failed to set temperature regulator to subzero mode.")
-            sys.exit()
+            raise RuntimeError("Failed to set temperature regulator to subzero mode.")
 
     def set_temperature(self, temp: float) -> None:
         self.assess_status()
@@ -463,8 +469,7 @@ class PeltierModule:
         if self.register_write(0, self.clamp(temp, self.min_temp, self.max_temp)) is True:
             logging.info(f"Peltier target temperature set to {temp}C.")
         else:
-            logging.error("Failed to set peltier target temperature.")
-            sys.exit()
+            raise RuntimeError("Failed to set peltier target temperature.")
 
         # Ramp up initial current draw to prevent spikes
         self.set_max_tc(0)

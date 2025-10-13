@@ -53,6 +53,7 @@ temperature:
   steady_s: 120
   timeout_s: 1800
   settle_s: 60
+  mode: 2 # 2 = Bang-Bang, 6 = PID
 
 communication:
   pump_controller_A: # Has 2x DC transfer pumps

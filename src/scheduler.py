@@ -81,6 +81,7 @@ class scheduler:
 
         # Populate temperature related constants
         temp_cfg = self.cfg.get("temperature", {})
+        self.tec.mode = temp_cfg["mode"]
         self.tec.allowable_error = temp_cfg["tolerance_C"]
         self.tec.steady_state = temp_cfg["steady_s"]
         self.tec.timeout = temp_cfg["timeout_s"]
