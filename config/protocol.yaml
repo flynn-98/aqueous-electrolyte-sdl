@@ -22,7 +22,7 @@ steps:
   - action: MakeMixture
 
   #- action: Mix
-  #  mixing_time: 10
+  #  mixing_time: 30
   #  mixing_cycles: 10
 
   - action: TransferToCell

@@ -277,13 +277,15 @@ class scheduler:
 
         log.info(f"Mixing content of chamber {mixing_cycles} times..")
         pwm = self.cfg["pumps"].get("mixing_pwm", 100)
+        ml_per_s = self.cfg["pumps"].get("ml_per_s", 0.2)
 
         self.show_message(f"--> Mixing Electroyte X{mixing_cycles}")
 
         for _ in range(mixing_cycles):
-            # Inject air
-            self._transfer_pump(ctl="A", pump_index=1, volume_ml=1, pwm=-pwm, check=True)
-            time.sleep(2)
+            # Extract some liquid (1s)
+            self._transfer_pump(ctl="A", pump_index=1, volume_ml=1*ml_per_s, pwm=pwm, check=True)
+            # Inject air (3s)
+            self._transfer_pump(ctl="A", pump_index=1, volume_ml=3*ml_per_s, pwm=-pwm, check=True)
 
         log.info(f"Waiting for {mixing_time}s for mixture to settle..")
         self.show_message(f"--> Waiting for {mixing_time}s")
