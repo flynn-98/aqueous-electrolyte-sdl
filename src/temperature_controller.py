@@ -54,13 +54,13 @@ class PeltierModule:
         # Heating should be proportional-driven, cooling should be more integral-driven
         # Not used in ON/OFF mode (mode=2)
 
-        self.heating_tc = 50 #%
-        self.heating_Kp = 10 # deadband / allowable_error
+        self.heating_tc = 40 #%
+        self.heating_Kp = 5 # deadband / allowable_error
         self.heating_Ki = 0.005
         self.heating_Kd = 0.0
         self.heating_ilim = 0.0
 
-        self.cooling_tc = 80 #%
+        self.cooling_tc = 85 #%
         self.cooling_Kp = 15
         self.cooling_Ki = 0.01
         self.cooling_Kd = 0.0
@@ -74,15 +74,15 @@ class PeltierModule:
 
         self.run_flag = False
 
-        self.temp_threshold = 20 #C, to set heating or cooling parameters
-        self.subzero_threshold = 1 #C
+        self.temp_threshold = 24 #C, to set heating or cooling parameters
+        self.subzero_threshold = 2 #C
         self.tc_dead_band = 1 #+-% to prevent rapid switching
 
         # ON/OFF mode
-        self.dead_band = 0.25 #C - match acceptance tolerance?
-        self.hysterisis = 1 #C - depends on intertia of system
+        self.dead_band = 0 #C - match acceptance tolerance?
+        self.hysterisis = 0.1 #C - depends on intertia of system
 
-        self.mode = 2
+        self.mode = 6
 
         if self.sim:
             logging.info("Simulated connection to temperature controller established.")
@@ -102,47 +102,47 @@ class PeltierModule:
             
         self.handshake()
 
-        if self.set_regulator_mode() is True:
+        if self.set_regulator_mode():
             logging.info("Temperature regulator mode set.")
         else:
             raise RuntimeError("Temperature regulator configuration failed.")
 
-        if self.set_bang_parameters() is True:
+        if self.set_bang_parameters():
             logging.info("Temperature regulator ON/OFF parameters set.")
         else:
             raise RuntimeError("Temperature regulator ON/OFF configuration failed.")
 
-        if (self.set_tc_tc_dead_band() is True):
+        if self.set_tc_tc_dead_band():
             logging.info("Temperature regulator dead band parameters set.")
         else:
             raise RuntimeError("Temperature regulator dead band configuration failed.")
 
-        if self.set_voltage_alarm_settings() is True:
+        if self.set_voltage_alarm_settings():
             logging.info("Temperature regulator voltage alarm parameters set.")
         else:
             raise RuntimeError("Temperature regulator voltage alarm configuration failed.")
 
-        if self.set_current_alarm_settings() is True:
+        if self.set_current_alarm_settings():
             logging.info("Temperature regulator current alarm parameters set.")
         else:
             raise RuntimeError("Temperature regulator current alarm configuration failed.")
 
-        if self.configure_main_sensor() is True:
+        if self.configure_main_sensor():
             logging.info("Temperature Sensor #1 configured.")
         else:
             raise RuntimeError("Temperature Sensor #1 configuration failed.")
 
-        if self.configure_heat_sink_sensor() is True:
+        if self.configure_heat_sink_sensor():
             logging.info("Temperature sensor #2 configured.")
         else:
             raise RuntimeError("Temperature sensor #2 configuration failed.")
 
-        if self.set_main_steinhart_coeffs() is True:
+        if self.set_main_steinhart_coeffs():
             logging.info("Updated steinhart coefficients for temperature sensor #1.")
         else:
             raise RuntimeError("Failed to update steinhart coefficients for temperature sensor #1.")
 
-        if self.set_heat_sink_steinhart_coeffs() is True:
+        if self.set_heat_sink_steinhart_coeffs():
             logging.info("Updated steinhart coefficients for temperature sensor #2.")
         else:
             raise RuntimeError("Failed to update steinhart coefficients for temperature sensor #2.")
@@ -322,46 +322,58 @@ class PeltierModule:
         # This helps to save the life of the peltier modules
 
     def set_bang_parameters(self) -> bool:
-        if (self.register_write(14, self.dead_band) is True) and (self.register_write(15, self.hysterisis) is True):
+        if self.register_write(14, self.dead_band) and self.register_write(15, self.hysterisis):
+            return True
+        else:
+            return False
+        
+    def set_heat_only(self) -> bool:
+        if self.register_write(10, 0) and self.register_write(11, 1.0):
+            return True
+        else:
+            return False
+        
+    def set_cool_only(self) -> bool:
+        if self.register_write(10, 1.0) and self.register_write(11, 0):
             return True
         else:
             return False
 
     def set_pid_parameters(self, p: float, i: float, d: float, i_lim: float = 100) -> bool:
-        if (self.register_write(1, p) is True) and (self.register_write(2, i) is True) and (self.register_write(3, d) is True) and (self.register_write(8, i_lim) is True):
+        if self.register_write(1, p) and self.register_write(2, i) and self.register_write(3, d) and self.register_write(8, i_lim):
             return True
         else:
             return False
 
     def set_low_pass(self, low_pass_a: float = 2, low_pass_b: float = 3) -> bool:
         # Default controller values for now => no need to set
-        if self.register_write(4, abs(low_pass_a)) is True and self.register_write(5, abs(low_pass_b)) is True:
+        if self.register_write(4, abs(low_pass_a)) and self.register_write(5, abs(low_pass_b)):
             return True
         else:
             return False
 
-    def set_fan_modes(self, mode: int = 4) -> None:
+    def set_fan_modes(self, mode: int = 1) -> None:
         # Always OFF = 0
         # Always ON = 1
         # Cool = 2
         # Heat = 3
         # Cool / Heat = 4, on when main output is non zero (reg[106])
         
-        if (self.register_write(16, mode) is True) and (self.register_write(23, mode) is True) and (self.register_write(22, self.fan_voltage) is True) and (self.register_write(29, self.fan_voltage) is True):
+        if self.register_write(16, mode) and self.register_write(23, mode) and self.register_write(22, self.fan_voltage) and self.register_write(29, self.fan_voltage):
             logging.info("Temperature regulator fan settings successfully configured.")
         else:
             raise RuntimeError("Temperature regulator fan configuration failed.")
         
     def turn_fans_off(self) -> None:
         # To be used when taking mass readings
-        if (self.register_write(16, 0) is True) and (self.register_write(23, 0) is True):
+        if self.register_write(16, 0) and self.register_write(23, 0):
             logging.info("Fans successfully turned off.")
         else:
             logging.error("Failed to turn off fans.")
         
     def set_voltage_alarm_settings(self) -> bool:
         # Set alarms for over and under voltage
-        if (self.register_write(45, self.input_voltage + 1) is True) and (self.register_write(46, self.input_voltage - 1) is True):
+        if self.register_write(45, self.input_voltage + 1) and self.register_write(46, self.input_voltage - 1):
             return True
         else:
             return False
@@ -369,7 +381,7 @@ class PeltierModule:
     def set_current_alarm_settings(self) -> bool:
         # Main current under and over
         # Fan current over
-        if (self.register_write(47, self.max_current) is True) and (self.register_write(48, self.min_current) is True) and (self.register_write(49, self.fan_current) is True) and (self.register_write(51, self.fan_current) is True):
+        if self.register_write(47, self.max_current) and self.register_write(48, self.min_current) and self.register_write(49, self.fan_current) and self.register_write(51, self.fan_current):
             return True
         else:
             return False
@@ -383,7 +395,7 @@ class PeltierModule:
 
         # Also set alarms on over and under
 
-        if (self.register_write(55, mode) is True) and (self.register_write(71, self.max_temp + 5) is True) and (self.register_write(72, self.min_temp - 5) is True):
+        if self.register_write(55, mode) and self.register_write(71, self.max_temp + 5) and self.register_write(72, self.min_temp - 5):
             return True
         else:
             return False
@@ -394,19 +406,19 @@ class PeltierModule:
         # 4 = to activate PT mode 
 
         # Also set alarms on over and under
-        if (self.register_write(56, mode) is True) and (self.register_write(73, self.max_temp + 5) is True) and (self.register_write(74, self.min_temp - 5) is True):
+        if self.register_write(56, mode) and self.register_write(73, self.max_temp + 5) and self.register_write(74, self.min_temp - 5):
             return True
         else:
             return False
         
     def set_main_steinhart_coeffs(self) -> bool:
-        if (self.register_write(59, self.A_coeff_2) is True) and (self.register_write(60, self.B_coeff_2) is True) and (self.register_write(61, self.C_coeff_2) is True):
+        if self.register_write(59, self.A_coeff_2) and self.register_write(60, self.B_coeff_2) and self.register_write(61, self.C_coeff_2):
             return True
         else:
             return False
         
     def set_heat_sink_steinhart_coeffs(self) -> bool:
-        if (self.register_write(62, self.A_coeff_2) is True) and (self.register_write(63, self.B_coeff_2) is True) and (self.register_write(64, self.C_coeff_2) is True):
+        if self.register_write(62, self.A_coeff_2) and self.register_write(63, self.B_coeff_2) and self.register_write(64, self.C_coeff_2):
             return True
         else:
             return False
@@ -436,19 +448,37 @@ class PeltierModule:
         return self.register_read(154)
     
     def set_heating_mode(self) -> None:
-        if self.set_pid_parameters(self.heating_Kp, self.heating_Ki, self.heating_Kd, self.heating_ilim) is True:
+        if self.mode==2:
+            if self.set_heat_only():
+                logging.info("Temperature regulator set to heating only mode (ON/OFF).")
+            else:
+                raise RuntimeError("Failed to set temperature regulator to heating only mode.")
+
+        if self.set_pid_parameters(self.heating_Kp, self.heating_Ki, self.heating_Kd, self.heating_ilim):
                 logging.info("Temperature regulator set to heating mode.")
         else:
             raise RuntimeError("Failed to set temperature regulator to heating mode.")
 
     def set_cooling_mode(self) -> None:
-        if self.set_pid_parameters(self.cooling_Kp, self.cooling_Ki, self.cooling_Kd, self.cooling_ilim) is True:
+        if self.mode==2:
+            if self.set_cool_only():
+                logging.info("Temperature regulator set to cooling only mode (ON/OFF).")
+            else:
+                raise RuntimeError("Failed to set temperature regulator to cooling only mode.")
+
+        if self.set_pid_parameters(self.cooling_Kp, self.cooling_Ki, self.cooling_Kd, self.cooling_ilim):
                 logging.info("Temperature regulator set to cooling mode.")
         else:
             raise RuntimeError("Failed to set temperature regulator to cooling mode.")
 
     def set_subzero_mode(self) -> None:
-        if self.set_pid_parameters(self.subzero_Kp, self.subzero_Ki, self.subzero_Kd, self.subzero_ilim) is True:
+        if self.mode==2:
+            if self.set_cool_only():
+                logging.info("Temperature regulator set to cooling only mode (ON/OFF).")
+            else:
+                raise RuntimeError("Failed to set temperature regulator to cooling only mode.")
+
+        if self.set_pid_parameters(self.subzero_Kp, self.subzero_Ki, self.subzero_Kd, self.subzero_ilim):
                 logging.info("Temperature regulator set to subzero mode.")
         else:
             raise RuntimeError("Failed to set temperature regulator to subzero mode.")
@@ -466,7 +496,7 @@ class PeltierModule:
             self.set_subzero_mode()
             max_tc = self.subzero_tc
 
-        if self.register_write(0, self.clamp(temp, self.min_temp, self.max_temp)) is True:
+        if self.register_write(0, self.clamp(temp, self.min_temp, self.max_temp)):
             logging.info(f"Peltier target temperature set to {temp}C.")
         else:
             raise RuntimeError("Failed to set peltier target temperature.")
@@ -541,7 +571,6 @@ class PeltierModule:
     @skip_if_sim(default_return=True)
     def plot_live_temperature_control(self, value: float, sample_rate: float = 1) -> bool:        
         self.set_temperature(value)
-        global_start = time.time()
 
         plt.ion()
         plot_width = self.timeout * sample_rate
@@ -556,28 +585,39 @@ class PeltierModule:
         plt.grid(visible=True, which="both", axis="both")
 
         error = [0] * plot_width
-        dT = [0] * plot_width
         drive = [0] * plot_width
         samples = range(1, plot_width+1)
 
         line1, = ax.plot(samples, error, 'r-', label="Temperature Error K")
         line2, = ax.plot(samples, drive, 'g-', label="Drive Power %")
-        line3, = ax.plot(samples, dT, 'b-', label="dT K")
         plt.legend(loc="upper right")
 
         # Turn controller ON
         self.set_run_flag()
 
-        while (time.time() - global_start) < self.timeout:
+        start = time.time()
+        elapsed_time = 0
+        count = 0
+
+        max_count = floor(self.steady_state / sample_rate) - 1
+
+        while (elapsed_time < self.timeout) and (count < max_count):
+            elapsed_time = time.time() - start
 
             temperature = self.get_t1_value()
-            sink = self.get_t2_value()
             curr = self.get_main_current()
-            fan_curr = self.get_fan1_current() + self.get_fan2_current()         
+            fan_curr = self.get_fan1_current() + self.get_fan2_current()
+
+            # Check steady state based on number of counts (depends on sample rate)
+            if abs(value - temperature) <= self.allowable_error:
+                count += 1
+                logging.info(f"Error < allowable error (count = {count})")
+            else:
+                count = 0 
 
             # Append and loose first element
-            plt.title(f"Target Temp: {value}C, Sample Rate: {sample_rate}Hz")
-            plt.suptitle(f"Live Data: Control Temperature = {round(temperature,2)}C, Heat Sink Temperature = {round(sink,2)}C, Main Current = {round(curr,2)}A, Fan Current = {round(fan_curr,2)}A, Elapsed Time = {round(time.time() - global_start,2)}s")
+            plt.title(f"Target Temp: {value}C, Sample Rate: {sample_rate}s")
+            plt.suptitle(f"Live Data: Control Temperature = {round(temperature,2)}C, Main Current = {round(curr,2)}A, Fan Current = {round(fan_curr,2)}A, Elapsed Time = {round(time.time() - start,2)}s")
 
             error.append(value - temperature)
             error = error[-plot_width:]
@@ -585,34 +625,28 @@ class PeltierModule:
             drive.append(self.get_tc_value())
             drive = drive[-plot_width:]
 
-            dT.append(abs(temperature - sink))
-            dT = dT[-plot_width:]
-
             line1.set_ydata(error)
             line2.set_ydata(drive)
-            line3.set_ydata(dT)
 
             fig.canvas.draw()
             fig.canvas.flush_events()
                 
             local_start = time.time()     
 
-            while (abs(value - self.get_t1_value()) < self.allowable_error) and (time.time() - local_start < self.steady_state):
-                time.sleep(1 / sample_rate)
+            while time.time() - local_start < sample_rate:
+                time.sleep(1)
 
-            # Check if steady state timeout reached
-            if (time.time() - local_start) >= self.steady_state:
-                logging.info(f"Temperature controller successfully reached {value}C in {time.time() - global_start}s")
-                logging.info(f"Final peltier current is {round(self.get_main_current(),2)}A.")
+        plt.savefig("final-plot.png")
 
-                # Turn controller OFF
-                self.clear_run_flag()
-                return True
-            
-            time.sleep(1 / sample_rate)
-            
+        # Check if steady state timeout reached
+        if count >= max_count:
+            logging.info(f"Temperature controller successfully reached {value}C in {time.time() - start}s")
+
+            # Turn controller OFF
+            self.clear_run_flag()
+            return True
+                        
         logging.error(f"Temperature controller timed out trying to reach {value}C.")
-        logging.info(f"Final peltier current is {round(self.get_main_current(),2)}A.")
 
         # Turn controller OFF
         self.clear_run_flag()

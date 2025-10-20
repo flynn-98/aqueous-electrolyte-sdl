@@ -51,14 +51,14 @@ pumps:
 temperature:
   tolerance_C: 0.25 # plus or minus
   steady_s: 120
-  timeout_s: 1800
+  timeout_s: 7200
   settle_s: 60
-  mode: 2 # 2 = Bang-Bang, 6 = PID
+  mode: 6 # 2 = Bang-Bang, 6 = PID
 
 communication:
   pump_controller_A: # Has 2x DC transfer pumps
     ble_name: PumpControllerA
-    mock: False
+    mock: True
     timeout: 60
     ble: True
     port: /dev/cu.usbserial-CLEBb136G04
@@ -66,7 +66,7 @@ communication:
 
   pump_controller_B: # Has 4x DC waste pumps
     ble_name: PumpControllerB
-    mock: False
+    mock: True
     timeout: 60
     ble: True
     port: /dev/cu.usbserial-CLEBb136G04
