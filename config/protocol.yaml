@@ -28,7 +28,7 @@ steps:
   - action: TransferToCell
 
   - action: EIS
-    temperatures_C: [10, 20, 30, 40]
+    temperatures_C: [0, 10, 20, 30, 40]
     freq_start_Hz: 85000
     freq_end_Hz: 1
     amplitude_v: 0.01

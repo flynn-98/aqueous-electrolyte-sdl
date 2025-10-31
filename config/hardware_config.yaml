@@ -23,7 +23,7 @@ measurements:
 chemicals:
   Milli-Q: { controller: A, pump_index: 1, prime_ml: 1.8, cost: 1 } 
   Standard_1413u: { controller: A, pump_index: 2, prime_ml: 1.9, cost: 1 } 
-  HCl: { controller: A, pump_index: 3, prime_ml: 1.9, cost: 1 }
+  Standard_1288u: { controller: A, pump_index: 3, prime_ml: 1.9, cost: 1 }
   Na2SO4_2M: { controller: A, pump_index: 4, prime_ml: 2.1, cost: 5 }
   Ethanol: { controller: B, pump_index: 1, prime_ml: 2.2, cost: 1 }
   Chem6: { controller: B, pump_index: 2, prime_ml: 1.0, cost: 1 }
@@ -32,8 +32,8 @@ chemicals:
 
 system:
   # Tube volumes between destinations (ml)
-  mix_to_cell_ml: 0.83
-  cell_to_waste_ml: 2.5
+  mix_to_cell_ml: 0.4 #0.83
+  cell_to_waste_ml: 1.25 #2.5
   waste_no: 1 # 1..4
 
 # Default pump parameters used by the scheduler for priming / dosing.
@@ -43,8 +43,8 @@ pumps:
   mixing_flowrate: 0.1 # ml/s
   priming_flowrate: 0.15
   # Calibration for DC pumps
-  transfer_pwm: 40 # %
-  waste_pwm: 40
+  transfer_pwm: 80 # %
+  waste_pwm: 80
   mixing_pwm: 80
   ml_per_s: 0.2
 
@@ -58,7 +58,7 @@ temperature:
 communication:
   pump_controller_A: # Has 2x DC transfer pumps
     ble_name: PumpControllerA
-    mock: True
+    mock: False
     timeout: 60
     ble: True
     port: /dev/cu.usbserial-CLEBb136G04
@@ -66,19 +66,19 @@ communication:
 
   pump_controller_B: # Has 4x DC waste pumps
     ble_name: PumpControllerB
-    mock: True
+    mock: False
     timeout: 60
     ble: True
     port: /dev/cu.usbserial-CLEBb136G04
     baud: 115200
 
   temperature_controller:
-    port: /dev/ttyUSB0
+    port: /dev/cu.usbserial-CLEBb136G04
     baud: 115200
-    mock: False
+    mock: True
 
   squidstat:
-    port: ttyACM0
+    port: /dev/cu.usbmodem12101
     channel: 0
     instrument: Plus2695
-    mock: False
+    mock: True

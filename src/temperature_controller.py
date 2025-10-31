@@ -55,22 +55,22 @@ class PeltierModule:
         # Not used in ON/OFF mode (mode=2)
 
         self.heating_tc = 40 #%
-        self.heating_Kp = 5 # deadband / allowable_error
-        self.heating_Ki = 0.005
-        self.heating_Kd = 0.0
-        self.heating_ilim = 0.0
+        self.heating_Kp = 10 # deadband / allowable_error
+        self.heating_Ki = 0.01
+        self.heating_Kd = 0.5
+        self.heating_ilim = self.heating_tc
 
-        self.cooling_tc = 85 #%
+        self.cooling_tc = 80 #%
         self.cooling_Kp = 15
-        self.cooling_Ki = 0.01
-        self.cooling_Kd = 0.0
-        self.cooling_ilim = 60.0
+        self.cooling_Ki = 0.02
+        self.cooling_Kd = 0.5
+        self.cooling_ilim = self.cooling_tc
 
         self.subzero_tc = 100 #%
         self.subzero_Kp = 20
         self.subzero_Ki = 0.05
-        self.subzero_Kd = 0.0
-        self.subzero_ilim = 100.0
+        self.subzero_Kd = 0.5
+        self.subzero_ilim = self.subzero_tc
 
         self.run_flag = False
 
