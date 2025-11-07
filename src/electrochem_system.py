@@ -3,7 +3,7 @@ import os
 from datetime import datetime
 from csv import DictWriter
 import time
-from typing import Callable, Optional
+from typing import Callable
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -27,6 +27,9 @@ def skip_if_sim(default_return = None):
 class ECMeasurements:
     def __init__(self, squid_port: str, instrument: str, results_path: str, channel: int = 0, squid_sim: bool = False) -> None:
 
+        self.master_csv = None
+        self.top_results_path = results_path
+
         self.sim = squid_sim
         self.squid = SquidStat(COM=squid_port, instrument=instrument, results_path=results_path, channel=channel, sim=squid_sim)
 
@@ -39,9 +42,7 @@ class ECMeasurements:
         self.settle_time = 60
 
         self.epsilon_0 = 8.8541878128e-12 # vacuum permittivity
-        self.cell_constant = 8 # to be set from hardcoded values
-
-        self.master_csv = None
+        self.cell_constant = 1 # to be set from hardcoded values
 
         self.eis_fieldnames = [
             'Unique ID',
@@ -93,10 +94,10 @@ class ECMeasurements:
 
     def get_indentifier(self) -> str:
         now = datetime.now()
-        return f"ID_{now.strftime('%d-%m-%Y_%H-%M-%S')}_{self.user}_{self.project}_"
+        return f"ID_{now.strftime('%Y-%m-%d_%H-%M-%S')}_{self.user}_{self.project}_"
     
     def update_experiment_dir(self, mode: str) -> None:
-        if os.path.basename(self.squid.results_path) == "results":
+        if os.path.basename(self.squid.results_path) == self.top_results_path:
             self.squid.results_path = os.path.join(self.squid.results_path, mode)
 
         elif os.path.basename(self.squid.results_path) != mode:

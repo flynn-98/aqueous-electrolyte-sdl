@@ -1,7 +1,6 @@
 import logging
 import os
 import sys
-
 import pandas as pd
 
 from PySide6.QtWidgets import QApplication
@@ -128,11 +127,20 @@ class SquidStat:
 
         self.save_data(identifier)
 
+    def get_day_path_from_id(self, identifier: str) -> str:
+        now = identifier.split('_')[1] # extract date from ID
+        day_path = os.path.join(self.results_path, now)
+
+        if not os.path.exists(day_path):
+            os.mkdir(day_path)
+
+        return day_path
+
     def get_dc_path(self, identifier: str) -> str:
-        return os.path.join(self.results_path, identifier+"_DC.csv")
+        return os.path.join(self.get_day_path_from_id(identifier), identifier+"_DC.csv")
     
     def get_ac_path(self, identifier: str) -> str:
-        return os.path.join(self.results_path, identifier+"_AC.csv")
+        return os.path.join(self.get_day_path_from_id(identifier), identifier+"_AC.csv")
 
     def save_data(self, identifier: str) -> None:
         logging.info("Checking if Squidstat data is available..")

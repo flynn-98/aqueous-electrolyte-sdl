@@ -113,7 +113,6 @@ class scheduler:
             "MakeMixture": lambda p: self.make_mixture(),
             "Mix": lambda p: self.mix_electrolyte(
                 mixing_time = p.get("mixing_time", 10),
-                mixing_cycles = p.get("mixing_cycles", 10),
             ),
             "TransferToCell": lambda p: self.transfer_to_cell(),
             "EIS": lambda p: self.run_temperature_sweep_with_eis(
@@ -270,26 +269,21 @@ class scheduler:
         self.pumpB.multi_pump(ml_B, flow_rate=flow_rate, check=False)
         self._wait_for_responses()
 
-    def mix_electrolyte(self, mixing_time: int = 10, mixing_cycles: int = 10):
+    def mix_electrolyte(self, mixing_time: int = 10):
         """
-        Perform a number of mixing cycles by pumping forwards and back through tubing. Wait for period of time for mixture to settle.
+        Perform magnetic stirrer mixing of electrolyte for a number of seconds. Wait for period of time for mixture to settle.
         """
 
-        log.info(f"Mixing content of chamber {mixing_cycles} times..")
-        pwm = self.cfg["pumps"].get("mixing_pwm", 100)
+        log.info(f"Mixing content of chamber for {mixing_time}s..")
+        pwm = self.cfg["pumps"].get("mixing_pwm", 50)
         ml_per_s = self.cfg["pumps"].get("ml_per_s", 0.2)
 
-        self.show_message(f"--> Mixing Electroyte X{mixing_cycles}")
+        self.show_message(f"--> Mixing Electroyte for {mixing_time}s")
+        self._transfer_pump(ctl="A", pump_index=3, volume_ml=mixing_time*ml_per_s, pwm=pwm, check=True)
 
-        for _ in range(mixing_cycles):
-            # Extract some liquid (1s)
-            self._transfer_pump(ctl="A", pump_index=1, volume_ml=1*ml_per_s, pwm=pwm, check=True)
-            # Inject air (3s)
-            self._transfer_pump(ctl="A", pump_index=1, volume_ml=3*ml_per_s, pwm=-pwm, check=True)
-
-        log.info(f"Waiting for {mixing_time}s for mixture to settle..")
-        self.show_message(f"--> Waiting for {mixing_time}s")
-        time.sleep(mixing_time)
+        log.info(f"Waiting for 10s for mixture to settle..")
+        self.show_message(f"--> Waiting for 10s")
+        time.sleep(10)
 
     def transfer_to_cell(self, check: bool = True, cell_no: int = 1):
         """
@@ -365,6 +359,8 @@ class scheduler:
         # Quick flush to clear any salt from lines
         log.info(f"Rinsing with {flushing_agent}.")
         self._single_dose(flushing_agent, flush_volume, flow_rate)
+
+        self.mix_electrolyte(mixing_time=10)
         
         self.clear_system()
 
@@ -373,6 +369,7 @@ class scheduler:
         log.info(f"Cleaning with {cleaning_agent}.")
         self._single_dose(cleaning_agent, flush_volume, flow_rate)
         self.transfer_to_cell()
+        self.mix_electrolyte(mixing_time=10)
 
         self.show_message(f"Waiting for {cleaning_time}s")
         log.info(f"Cleaning for {cleaning_time}s.")
@@ -387,6 +384,7 @@ class scheduler:
         # Final flush
         log.info(f"Final rinsing with {flushing_agent}.")
         self._single_dose(flushing_agent, flush_volume, flow_rate)
+        self.mix_electrolyte(mixing_time=10)
         self.clear_system()
 
         log.info(f"Waiting for another {cleaning_time}s for residue to evaporate.")
@@ -429,7 +427,7 @@ class scheduler:
             log.info(f"Waiting until temperature = {T:.1f} C")
             self.show_message(f"Target: {self.tec.get_t1_value():.1f} -> {T:.1f}C")
 
-            if not self.tec.wait_until_temperature(T, show_temperature_fn=self.show_message):
+            if not self.tec.wait_until_temperature(T, os.path.join("results","temp_debug"), show_temperature_fn=self.show_message):
                 raise RuntimeError("Temperature regulation failed!")
             
             self.show_message(f"Collecting EIS Data @ {self.tec.get_t1_value():.1f}C")
@@ -488,7 +486,7 @@ class scheduler:
             log.info(f"Waiting until temperature = {T:.1f} C")
             self.show_message(f"Target: {self.tec.get_t1_value():.1f} -> {T:.1f}C")
 
-            if not self.tec.wait_until_temperature(T, show_temperature_fn=self.show_message):
+            if not self.tec.wait_until_temperature(T, os.path.join("results","temp_debug"), show_temperature_fn=self.show_message):
                 raise RuntimeError("Temperature regulation failed!")
             
             self.show_message(f"Collecting CV Data @ {self.tec.get_t1_value():.1f}C")
@@ -577,22 +575,22 @@ class scheduler:
 
         # 2) Apply suggestions (convert uL -> mL)
         total_ml = 0
-        for name, ul in values.items():
+        for name, ml in values.items():
             try:
-                ul_f = float(ul)
+                ml_f = float(ml)
             except Exception:
-                log.error(f"{name}: non-numeric dose '{ul}' -> setting to 0")
-                ul_f = 0.0
+                log.error(f"{name}: non-numeric dose '{ml_f}' -> setting to 0")
+                ml_f = 0.0
 
-            ml = round(ul_f / 1000, 3)
+            ml_r = round(ml_f, 3)
 
             if name not in recipe:
                 raise ValueError(f"{name} returned from Atinary not in YAML recipe_ml!")
 
-            recipe[name] = ml
+            recipe[name] = ml_r
 
-            total_ml += ml
-            log.info(f"{name} dose volume updated to {ul_f}uL ({ml}mL).")
+            total_ml += ml_r
+            log.info(f"{name} dose volume updated to {ml_r}mL.")
 
         log.info(f"New recipe total volume = {total_ml}ml.")
 
@@ -653,9 +651,12 @@ class scheduler:
         elif mode == "EIS" and not ids:
             ids = self.latest_eis_ids
 
+        # Update squid.results path to point to correct mode
+        self.cell.update_data_space(mode)
+
         try:
-            master_csv = os.path.join(self.cell.squid.results_path, f"{mode}_Results.csv")
-            df = pd.read_csv(master_csv)
+            logging.info(f"Aggregating '{agg_column}' data from {self.cell.master_csv}")
+            df = pd.read_csv(self.cell.master_csv)
         except FileNotFoundError:
             logging.error(f"Results CSV not found: {self.cell.master_csv}")
             return None
@@ -752,7 +753,7 @@ class scheduler:
             check (bool): Whether to check hardware response after transfer.
         """
         pump = self.pumpA if ctl == "A" else self.pumpB
-        mlps = self.cfg["pumps"].get("ml_per_s", 0.5)
+        mlps = self.cfg["pumps"].get("ml_per_s", 0.2)
 
         if mlps <= 0 or abs(pwm) > 100:
             raise ValueError("Incorrect variables given for PWM!")

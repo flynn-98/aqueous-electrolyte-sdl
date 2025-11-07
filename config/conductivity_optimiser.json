@@ -7,15 +7,15 @@
         {
             "name": "Milli-Q",
             "low_value": 0,
-            "high_value": 1500,
-            "stride": 10,
+            "high_value": 1.5,
+            "stride": 0.01,
             "type": "discrete"
         },
         {
             "name": "Na2SO4_2M",
             "low_value": 0,
-            "high_value": 1500,
-            "stride": 10,
+            "high_value": 1.5,
+            "stride": 0.01,
             "type": "discrete"
         }
     ],
@@ -57,7 +57,7 @@
                 }
             ],
             "targets": [
-                1500
+                1.5
             ]
         }
     ],

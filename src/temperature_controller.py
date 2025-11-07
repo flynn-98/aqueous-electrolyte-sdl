@@ -1,10 +1,11 @@
 import logging
-import sys
+import os
 import time
 from math import floor
 from typing import Callable
 
 import matplotlib.pyplot as plt
+from datetime import datetime
 import serial
 
 logging.basicConfig(level = logging.INFO)
@@ -56,18 +57,18 @@ class PeltierModule:
 
         self.heating_tc = 40 #%
         self.heating_Kp = 10 # deadband / allowable_error
-        self.heating_Ki = 0.01
-        self.heating_Kd = 0.5
+        self.heating_Ki = 0.001
+        self.heating_Kd = 1.5
         self.heating_ilim = self.heating_tc
 
         self.cooling_tc = 80 #%
-        self.cooling_Kp = 15
-        self.cooling_Ki = 0.02
-        self.cooling_Kd = 0.5
+        self.cooling_Kp = 20
+        self.cooling_Ki = 0.01
+        self.cooling_Kd = 1.0
         self.cooling_ilim = self.cooling_tc
 
         self.subzero_tc = 100 #%
-        self.subzero_Kp = 20
+        self.subzero_Kp = 30
         self.subzero_Ki = 0.05
         self.subzero_Kd = 0.5
         self.subzero_ilim = self.subzero_tc
@@ -76,7 +77,7 @@ class PeltierModule:
 
         self.temp_threshold = 24 #C, to set heating or cooling parameters
         self.subzero_threshold = 2 #C
-        self.tc_dead_band = 1 #+-% to prevent rapid switching
+        self.tc_dead_band = 0.5 #+-% to prevent rapid switching
 
         # ON/OFF mode
         self.dead_band = 0 #C - match acceptance tolerance?
@@ -518,26 +519,44 @@ class PeltierModule:
     @skip_if_sim(default_return=True)
     def wait_until_temperature(self, 
                             value: float,
+                            save_path: str,
                             show_temperature_fn: Callable[[str], None],
-                            sample_rate: float = 30, 
+                            sample_rate: float = 10, 
                             keep_on: bool = True,
                             ) -> bool:      
           
         self.set_temperature(value)
         temperature = self.get_t1_value()
 
+        if sample_rate < 5:
+            sample_rate = 5
+
+        # Plot temperature/power evolution once complete
+        plot_width = int(self.timeout / sample_rate)
+        error = [0] * plot_width
+        drive = [0] * plot_width
+        samples = range(1, plot_width+1)
+
         start = time.time()
         elapsed_time = 0
         count = 0
+        success = False
 
         max_count = floor(self.steady_state / sample_rate) - 1
 
         while (elapsed_time < self.timeout) and (count < max_count):
             elapsed_time = time.time() - start
             temperature = self.get_t1_value()
+            power = self.get_tc_value()
+
+            error.append(value - temperature)
+            error = error[-plot_width:]
+
+            drive.append(power)
+            drive = drive[-plot_width:]
 
             logging.info(f"Temperature progress is {round(temperature, 2)}/{value}C.")
-            logging.info(f"TEC Power: {round(self.get_tc_value(), 1)}% PWM -> {round(self.get_main_current(), 1)}A.")
+            logging.info(f"TEC Power: {round(power, 1)}% PWM -> {round(self.get_main_current(), 1)}A.")
 
             # Check steady state based on number of counts (depends on sample rate)
             if abs(value - temperature) <= self.allowable_error:
@@ -553,27 +572,45 @@ class PeltierModule:
 
         if count >= max_count:
             logging.info(f"Temperature controller successfully reached {value}C in {time.time() - start}s.")
-        
-            # Turn controller OFF if required
-            if keep_on is False:
-                logging.info("Switching off TEC.")
-                self.clear_run_flag()
+            success = True
+        else:
+            logging.error(f"Temperature controller timed out trying to reach {value}C.")
+            logging.info(f"Final TEC Power: {round(self.get_tc_value(), 1)}% PWM -> {round(self.get_main_current(), 1)}A.")
 
-            return True
-        
-        logging.error(f"Temperature controller timed out trying to reach {value}C.")
-        logging.info(f"Final TEC Power: {round(self.get_tc_value(), 1)}% PWM -> {round(self.get_main_current(), 1)}A.")
 
-        # Turn controller OFF
-        self.clear_run_flag()
-        return False
+        if not keep_on or not success:
+            logging.info("Switching off TEC.")
+            self.clear_run_flag()
+
+        # Plot results
+        fig = plt.figure(figsize=(20, 20))
+        ax = fig.add_subplot(111)
+            
+        plt.title(f"Target Temp: {value}C, Sample Step: {sample_rate}s")
+        plt.xlabel("Samples")
+        plt.ylim([-100, 100])
+        plt.grid(visible=True, which="both", axis="both")
+
+        line1, = ax.plot(samples, error, 'r-', label="Temperature Error K")
+        line2, = ax.plot(samples, drive, 'g-', label="Drive Power %")
+        plt.legend(loc="upper right")
+
+        # Create folder if not already
+        if not os.path.exists(save_path):
+            os.mkdir(save_path)
+
+        name = f"ID_{datetime.now().strftime('%d-%m-%Y_%H-%M-%S')}.png"
+        
+        plt.savefig(os.path.join(save_path, name))
+
+        return success
     
     @skip_if_sim(default_return=True)
     def plot_live_temperature_control(self, value: float, sample_rate: float = 1) -> bool:        
         self.set_temperature(value)
 
         plt.ion()
-        plot_width = self.timeout * sample_rate
+        plot_width = int(self.timeout / sample_rate)
 
         fig = plt.figure(figsize=(10, 20))
         ax = fig.add_subplot(111)
