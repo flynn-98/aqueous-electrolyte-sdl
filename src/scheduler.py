@@ -281,8 +281,8 @@ class scheduler:
         self.show_message(f"--> Mixing Electroyte for {mixing_time}s")
         self._transfer_pump(ctl="A", pump_index=3, volume_ml=mixing_time*ml_per_s, pwm=pwm, check=True)
 
-        log.info(f"Waiting for 10s for mixture to settle..")
-        self.show_message(f"--> Waiting for 10s")
+        log.info("Waiting for 10s for mixture to settle..")
+        self.show_message("--> Waiting for 10s")
         time.sleep(10)
 
     def transfer_to_cell(self, check: bool = True, cell_no: int = 1):

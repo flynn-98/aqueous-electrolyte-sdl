@@ -23,9 +23,9 @@ measurements:
 chemicals:
   Milli-Q: { controller: A, pump_index: 1, prime_ml: 1.8, cost: 0.1 } 
   Standard_1413u: { controller: A, pump_index: 2, prime_ml: 1.9, cost: 0.5 } 
-  Standard_1288u: { controller: A, pump_index: 3, prime_ml: 1.9, cost: 0.2 }
+  Ethanol: { controller: A, pump_index: 3, prime_ml: 1.9, cost: 0.2 }
   Na2SO4_2M: { controller: A, pump_index: 4, prime_ml: 2.1, cost: 5 }
-  Ethanol: { controller: B, pump_index: 1, prime_ml: 2.2, cost: 1 }
+  Standard_1288u: { controller: B, pump_index: 1, prime_ml: 2.2, cost: 1 }
   Chem6: { controller: B, pump_index: 2, prime_ml: 1.0, cost: 1 }
   Chem7: { controller: B, pump_index: 3, prime_ml: 1.0, cost: 1 }
   Chem8: { controller: B, pump_index: 4, prime_ml: 1.0, cost: 1 }
@@ -50,7 +50,7 @@ pumps:
 
 temperature:
   tolerance_C: 0.5 # plus or minus
-  steady_s: 180 #3min
+  steady_s: 120 #3min
   timeout_s: 3600
   settle_s: 30
   mode: 6 # 2 = Bang-Bang, 6 = PID

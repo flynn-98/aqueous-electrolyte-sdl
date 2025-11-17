@@ -58,13 +58,13 @@ class PeltierModule:
         self.heating_tc = 40 #%
         self.heating_Kp = 10 # deadband / allowable_error
         self.heating_Ki = 0.001
-        self.heating_Kd = 1.5
+        self.heating_Kd = 1.0
         self.heating_ilim = self.heating_tc
 
         self.cooling_tc = 80 #%
         self.cooling_Kp = 20
         self.cooling_Ki = 0.01
-        self.cooling_Kd = 1.0
+        self.cooling_Kd = 0.5
         self.cooling_ilim = self.cooling_tc
 
         self.subzero_tc = 100 #%
