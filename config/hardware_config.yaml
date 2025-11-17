@@ -23,7 +23,7 @@ measurements:
 chemicals:
   Milli-Q: { controller: A, pump_index: 1, prime_ml: 1.8, cost: 0.1 } 
   Standard_1413u: { controller: A, pump_index: 2, prime_ml: 1.9, cost: 0.5 } 
-  Ethanol: { controller: A, pump_index: 3, prime_ml: 1.9, cost: 0.2 }
+  HCl: { controller: A, pump_index: 3, prime_ml: 1.9, cost: 0.2 }
   Na2SO4_2M: { controller: A, pump_index: 4, prime_ml: 2.1, cost: 5 }
   Standard_1288u: { controller: B, pump_index: 1, prime_ml: 2.2, cost: 1 }
   Chem6: { controller: B, pump_index: 2, prime_ml: 1.0, cost: 1 }

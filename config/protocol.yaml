@@ -10,13 +10,13 @@ repeats: 1                   # repeats the WHOLE steps section
 
 steps:
   - action: CleanSystem
-    cleaning_agent: Ethanol  # optional; defaults exist
+    cleaning_agent: HCl  # optional; defaults exist
     flushing_agent: Milli-Q  # optional
     temperature_C: 40
     cleaning_time_s: 10
 
   - action: CleanSystem
-    cleaning_agent: Ethanol  # optional; defaults exist
+    cleaning_agent: HCl  # optional; defaults exist
     flushing_agent: Milli-Q  # optional
     temperature_C: 40
     cleaning_time_s: 10
@@ -38,7 +38,7 @@ steps:
   - action: TransferToCell
 
   - action: EIS
-    temperatures_C: [40, 30, 20, 10, 0]
+    temperatures_C: [35, 30, 25, 20, 15, 10, 5, 0]
     freq_start_Hz: 85000
     freq_end_Hz: 1
     amplitude_v: 0.01

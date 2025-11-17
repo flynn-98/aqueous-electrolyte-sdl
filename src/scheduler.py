@@ -105,7 +105,7 @@ class scheduler:
             "Prime": lambda p: self.smart_priming(),
             "Deprime": lambda p: self.smart_priming(just_deprime=True),
             "CleanSystem": lambda p: self.system_flush(
-                cleaning_agent=p.get("cleaning_agent", "Ethanol"),
+                cleaning_agent=p.get("cleaning_agent", "HCl"),
                 flushing_agent=p.get("flushing_agent", "Milli-Q"),
                 cleaning_temperature=p.get("temperature_C"),
                 cleaning_time=p.get("cleaning_time_s", 60),
