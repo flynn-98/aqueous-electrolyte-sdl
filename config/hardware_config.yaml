@@ -58,27 +58,27 @@ temperature:
 communication:
   pump_controller_A: # Has 2x DC transfer pumps
     ble_name: PumpControllerA
-    mock: True
+    mock: False
     timeout: 60
-    ble: True
-    port: /dev/cu.usbserial-CLEBb136G04
+    ble: False
+    port: COM15
     baud: 115200
 
   pump_controller_B: # Has 4x DC waste pumps
     ble_name: PumpControllerB
-    mock: True
+    mock: False
     timeout: 60
-    ble: True
-    port: /dev/cu.usbserial-CLEBb136G04
+    ble: False
+    port: COM17
     baud: 115200
 
   temperature_controller:
-    port: /dev/ttyUSB0
+    port: COM23
     baud: 115200
-    mock: True
+    mock: False
 
   squidstat:
-    port: ttyACM0
+    port: COM16
     channel: 0
-    instrument: Plus2695
-    mock: True
+    instrument: Plus2246 #Plus2695
+    mock: False

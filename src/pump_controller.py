@@ -23,16 +23,29 @@ class PumpController:
 
         else:
             logging.info("Configuring pump controller serial port..")
-            self.ser = serial.Serial(COM) 
+            self.ser = serial.Serial(
+                port=COM,
+                xonxoff=False,
+                rtscts=False,
+                dsrdtr=False,
+            )
             self.ser.baudrate = baud
             self.ser.bytesize = 8 
             self.ser.parity = 'N' # No parity
             self.ser.stopbits = 1
             self.ser.timeout = self.timeout
 
+            # Turn ESP ON (active low)
+            self.ser.setDTR(False)  # False = inactive = HIGH (because DTR is active-low)
+            self.ser.setRTS(False)
+
             logging.info("Attempting to open pump controller serial port..")
 
             if self.ser.isOpen() is False:
+                self.ser.open()
+            else:
+                self.ser.close()
+                time.sleep(0.05)
                 self.ser.open()
 
             # Give time for controller to wake up
