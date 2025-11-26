@@ -49,9 +49,13 @@ class PeltierModule:
         self.C_coeff_1 = 9.372652e-8
 
         # Thermisistor Steinhart coefficients NTC2 (standard type)
-        self.A_coeff_2 = 1.0373e-3
-        self.B_coeff_2 = 2.3317e-4
-        self.C_coeff_2 = 8.3896e-8
+        self.A_coeff_2 = 1.037284e-3
+        self.B_coeff_2 = 2.331722e-4
+        self.C_coeff_2 = 8.389599e-8
+
+        self.cold_res_2 = 48976.5
+        self.mid_res_2 = 15000
+        self.hot_res_2 = 5401.8
 
         # Heating/Cooling control
         # Heating should be proportional-driven, cooling should be more integral-driven
@@ -115,7 +119,7 @@ class PeltierModule:
         else:
             raise RuntimeError("Temperature regulator ON/OFF configuration failed.")
 
-        if self.set_tc_tc_dead_band():
+        if self.set_tc_dead_band():
             logging.info("Temperature regulator dead band parameters set.")
         else:
             raise RuntimeError("Temperature regulator dead band configuration failed.")
@@ -140,7 +144,7 @@ class PeltierModule:
         else:
             raise RuntimeError("Temperature sensor #2 configuration failed.")
 
-        if self.set_main_steinhart_coeffs():
+        if self.set_main_steinhart_coeffs() and self.backup_main_coeffs():
             logging.info("Updated steinhart coefficients for temperature sensor #1.")
         else:
             raise RuntimeError("Failed to update steinhart coefficients for temperature sensor #1.")
@@ -151,7 +155,9 @@ class PeltierModule:
             raise RuntimeError("Failed to update steinhart coefficients for temperature sensor #2.")
 
         self.set_fan_modes()
-        self.assess_status()      
+        self.assess_status()
+
+        self.commit_to_eeprom()
 
     @skip_if_sim()
     def close_ser(self) -> None:
@@ -196,6 +202,20 @@ class PeltierModule:
                 self.run_flag = True
             else:
                 logging.error("Failed to set temperature controller Run flag.")
+
+    @skip_if_sim()
+    def commit_to_eeprom(self) -> None:
+        msg = "$RW"
+
+        if not self.run_flag:
+            self.ser.write((msg+'\r').encode('ascii'))
+            repeat = self.get_data().split(" ")[1]
+            _ = self.get_data()
+
+            if repeat == msg:
+                logging.info("Register values committed to EEPROM.")
+            else:
+                logging.error("Failed to commit register values to EEPROM.")
 
     @skip_if_sim()
     def clear_run_flag(self) -> None:
@@ -317,7 +337,7 @@ class PeltierModule:
         # 100 is default register value
         return self.register_write(6, self.clamp(max, 0, 100))
         
-    def set_tc_tc_dead_band(self) -> bool:
+    def set_tc_dead_band(self) -> bool:
         return self.register_write(7, self.clamp(self.tc_dead_band, 0, 100))
 
         # Dead band is limiting the signal around zero value. 
@@ -390,15 +410,22 @@ class PeltierModule:
             return False
         
     def configure_main_sensor(self, mode: int = 12) -> bool:
-        # 2 = to activate Steinhart calculation
-        # 3 = to activate Zoom mode (internal control of digital pot). Have this bit set to achieve maximal resolution.
-        # 4 = to activate PT mode 
+        # 12 = to activate Steinhart calculation with zoom
+        # 4 = Steinhart without zoom
 
         # To revisit best mode and values to use
 
         # Also set alarms on over and under
 
         if self.register_write(55, mode) and self.register_write(71, self.max_temp + 5) and self.register_write(72, self.min_temp - 5):
+            return True
+        else:
+            return False
+        
+    def backup_main_coeffs(self) -> bool:
+        # Low, mid and high resistance points for 3 point calculation
+
+        if self.register_write(79, self.cold_res_2) and self.register_write(80, self.mid_res_2) and self.register_write(81, self.hot_res_2):
             return True
         else:
             return False
@@ -580,7 +607,7 @@ class PeltierModule:
             logging.info(f"Final TEC Power: {round(self.get_tc_value(), 1)}% PWM -> {round(self.get_main_current(), 1)}A.")
 
 
-        if not keep_on or not success:
+        if not keep_on: # or not success:
             logging.info("Switching off TEC.")
             self.clear_run_flag()
 
@@ -605,7 +632,7 @@ class PeltierModule:
         
         plt.savefig(os.path.join(save_path, name))
 
-        return success
+        return True
     
     @skip_if_sim(default_return=True)
     def plot_live_temperature_control(self, value: float, sample_rate: float = 1) -> bool:        
