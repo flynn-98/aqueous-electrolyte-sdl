@@ -10,12 +10,17 @@ measurements:
 # Waste Length = 300 (0.88ml)
 # Waste Spacing = 110 (0.32ml)
 
+
+# Bottle to boxer and trough: 395mm plus 65mm = 460mm. 460mm * 0.0029114 = 1.339244mL
 # Pumps to Needles
-# 1 = 100 (0.29)
-# 2 = 160 (0.47)
-# 3 = 160 (0.47)
-# 4 = 200 (0.58)
-# 5 = 240 (0.7)
+# 1 = 100 (0.29) Total> 1.63mL
+# 2 = 160 (0.47) Total> 1.80mL
+# 3 = 160 (0.47) Total> 1.80mL
+# 4 = 200 (0.58) Total> 1.92mL
+# 5 = 240 (0.7) Total> 2.04 mL
+# 6 = 320 Total> 2.27mL
+# 7 = 350 Total> 2.36mL
+# 8 = 400 Total> 2.50mL
 
 # Map each chemical to its controller/pump index and prime volume to fill the tubing.
 # pump_index is 1..4 for each controller, cost is per ml
@@ -24,9 +29,9 @@ chemicals:
   Milli-Q: { controller: A, pump_index: 1, prime_ml: 1.8, cost: 0.1 } 
   Standard_1413u: { controller: A, pump_index: 2, prime_ml: 1.9, cost: 0.5 } 
   HCl: { controller: A, pump_index: 3, prime_ml: 1.9, cost: 0.2 }
-  Na2SO4_2M: { controller: A, pump_index: 4, prime_ml: 2.1, cost: 5 }
+  NaNO3_5m: { controller: A, pump_index: 4, prime_ml: 2.1, cost: 5 }
   Standard_1288u: { controller: B, pump_index: 1, prime_ml: 2.2, cost: 1 }
-  Chem6: { controller: B, pump_index: 2, prime_ml: 1.0, cost: 1 }
+  Chem6: { controller: B, pump_index: 2, prime_ml: 1.0, cost: 1 } 
   Chem7: { controller: B, pump_index: 3, prime_ml: 1.0, cost: 1 }
   Chem8: { controller: B, pump_index: 4, prime_ml: 1.0, cost: 1 }
 
@@ -44,21 +49,21 @@ pumps:
   priming_flowrate: 0.2
   # Calibration for DC pumps
   transfer_pwm: 50 # %
-  waste_pwm: 50
+  waste_pwm: 60
   mixing_pwm: 15
   ml_per_s: 0.2
 
 temperature:
   tolerance_C: 0.5 # plus or minus
-  steady_s: 120 #3min
-  timeout_s: 3600
+  steady_s: 120 #2min
+  timeout_s: 4000
   settle_s: 30
   mode: 6 # 2 = Bang-Bang, 6 = PID
 
 communication:
   pump_controller_A: # Has 2x DC transfer pumps
     ble_name: PumpControllerA
-    mock: False
+    mock: True
     timeout: 60
     ble: False
     port: COM15
@@ -66,7 +71,7 @@ communication:
 
   pump_controller_B: # Has 4x DC waste pumps
     ble_name: PumpControllerB
-    mock: False
+    mock: True
     timeout: 60
     ble: False
     port: COM17
@@ -78,7 +83,7 @@ communication:
     mock: False
 
   squidstat:
-    port: COM16
+    port: COM20
     channel: 0
-    instrument: Plus2246 #Plus2695
-    mock: False
+    instrument: Plus2695
+    mock: True

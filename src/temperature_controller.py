@@ -53,10 +53,6 @@ class PeltierModule:
         self.B_coeff_2 = 2.331722e-4
         self.C_coeff_2 = 8.389599e-8
 
-        self.cold_res_2 = 48976.5
-        self.mid_res_2 = 15000
-        self.hot_res_2 = 5401.8
-
         # Heating/Cooling control
         # Heating should be proportional-driven, cooling should be more integral-driven
         # Not used in ON/OFF mode (mode=2)
@@ -89,6 +85,7 @@ class PeltierModule:
         self.dead_band = 0 #C - match acceptance tolerance?
         self.hysterisis = 0.1 #C - depends on intertia of system
 
+        # Regulator mode
         self.mode = 6
 
         if self.sim:
@@ -139,25 +136,25 @@ class PeltierModule:
         else:
             raise RuntimeError("Temperature Sensor #1 configuration failed.")
 
-        if self.configure_heat_sink_sensor():
-            logging.info("Temperature sensor #2 configured.")
-        else:
-            raise RuntimeError("Temperature sensor #2 configuration failed.")
-
-        if self.set_main_steinhart_coeffs() and self.backup_main_coeffs():
+        if self.set_main_steinhart_coeffs():
             logging.info("Updated steinhart coefficients for temperature sensor #1.")
         else:
             raise RuntimeError("Failed to update steinhart coefficients for temperature sensor #1.")
+        
+        #if self.configure_heat_sink_sensor():
+        #    logging.info("Temperature sensor #2 configured.")
+        #else:
+        #    raise RuntimeError("Temperature sensor #2 configuration failed.")
 
-        if self.set_heat_sink_steinhart_coeffs():
-            logging.info("Updated steinhart coefficients for temperature sensor #2.")
-        else:
-            raise RuntimeError("Failed to update steinhart coefficients for temperature sensor #2.")
-
+        #if self.set_heat_sink_steinhart_coeffs():
+        #    logging.info("Updated steinhart coefficients for temperature sensor #2.")
+        #else:
+        #    raise RuntimeError("Failed to update steinhart coefficients for temperature sensor #2.")
+        
         self.set_fan_modes()
         self.assess_status()
 
-        self.commit_to_eeprom()
+        #self.commit_to_eeprom()
 
     @skip_if_sim()
     def close_ser(self) -> None:
@@ -409,7 +406,7 @@ class PeltierModule:
         else:
             return False
         
-    def configure_main_sensor(self, mode: int = 12) -> bool:
+    def configure_main_sensor(self, mode: int = 4) -> bool:
         # 12 = to activate Steinhart calculation with zoom
         # 4 = Steinhart without zoom
 
@@ -418,14 +415,6 @@ class PeltierModule:
         # Also set alarms on over and under
 
         if self.register_write(55, mode) and self.register_write(71, self.max_temp + 5) and self.register_write(72, self.min_temp - 5):
-            return True
-        else:
-            return False
-        
-    def backup_main_coeffs(self) -> bool:
-        # Low, mid and high resistance points for 3 point calculation
-
-        if self.register_write(79, self.cold_res_2) and self.register_write(80, self.mid_res_2) and self.register_write(81, self.hot_res_2):
             return True
         else:
             return False
